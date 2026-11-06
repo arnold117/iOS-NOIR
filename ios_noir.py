@@ -117,6 +117,37 @@ HIGH_RISK_ENTITLEMENTS = {
     ),
 }
 
+PLAIN_EXPLANATIONS = {
+    "unrestricted-voip-regulatory": "不用弹全屏来电界面，服务器可随时下发无声指令把划掉的死进程静默拉活（屏幕不亮不响）。",
+    "unrestricted-voip": "允许通过 VoIP 语音推送通道在后台静默唤醒已关闭的应用。",
+    "HotspotHelper": "只要你打开系统 Wi-Fi 设置或走过商场，iOS 内核自动唤醒它并把周围所有路由器的 MAC 地址 (BSSID) 喂给它，没开 GPS 也能定位你。",
+    "multipath": "哪怕你连着家里 Wi-Fi 或挂着 VPN，它也能同时强行开启 4G/5G 蜂窝流量通道直连服务器（常用于绕过代理或配合基站取号）。",
+    "network-authentication": "直连移动/联通/电信基站网关，静默核验你的 SIM 卡身份或提取本机真实手机号。",
+    "multicast": "向你家里或办公室的 Wi-Fi 发送局域网广播包，探测你家里有哪些智能电视、NAS、音响、打印机，精准描绘家庭资产画像。",
+    "ubiquity-kvstore": "把唯一追踪码偷偷写进你的私人 iCloud 云空间——就算你卸载重装 App，甚至换了一台新 iPhone，它也能秒认出还是你。",
+    "healthkit-bg": "锁屏状态下，只要你的步数、心率或睡眠数据更新，系统就会在后台静默唤醒它同步生理数据。",
+    "nearby-interaction": "调用 iPhone 的 U1/U2 超宽带雷达芯片，以厘米级精度测算手机与周围其他设备的空间距离和方向。",
+    "networkextension": "在系统底层注册虚拟网卡或流量隧道，具备接管、分流系统网络流量的底层能力。",
+    "content-filter": "在设备端挂载内容审查过滤器，可监控或拦截进出设备的网络请求。",
+    "AppAttest": "调用苹果安全隔区硬件芯片生成不可篡改的设备身份证，常用于防作弊与硬件级封号关联。",
+    "HouseArrest": "应用把内部文档目录直接暴露在 USB 与局域网 Wi-Fi 同步接口下，插上电脑无需解锁 FaceID 就能直接拷走里面的文件。",
+    "UIFileSharingEnabled": "开启了外部文件共享接口，信任过的电脑可通过 USB 或同一局域网 Wi-Fi 免密访问其 /Documents 目录。",
+}
+
+BG_MODE_LABELS = {
+    "location": "📍location (后台持续定位追踪)",
+    "audio": "🔊audio (后台音频播放/无声保活/录音)",
+    "voip": "📞voip (网络电话后台常驻唤醒)",
+    "remote-notification": "🔔remote-notification (静默推送唤醒后台)",
+    "fetch": "🔄fetch (系统定期后台唤醒拉取数据)",
+    "processing": "⚙️processing (锁屏充电后台耗时任务)",
+    "bluetooth-central": "🦷bluetooth-central (后台持续扫描周边蓝牙设备/信标)",
+    "bluetooth-peripheral": "📡bluetooth-peripheral (后台作为蓝牙信标对外广播)",
+    "external-accessory": "🔌external-accessory (后台持续通信外接硬件配件)",
+    "nearby-interaction": "📏nearby-interaction (后台超宽带空间测距)",
+    "push-to-talk": "🎙️push-to-talk (后台对讲机实时语音唤醒)",
+}
+
 
 def build_html_report(report_data: dict, redact: bool = False) -> str:
     """Generate a standalone, dark/light responsive tabbed HTML report inspired by RootSir/claude-ios-privacy-analysis."""
@@ -149,21 +180,38 @@ def build_html_report(report_data: dict, redact: bool = False) -> str:
         findings_badges = []
         for f in a["findings"]:
             if "[实锤]" in f:
-                badge = f'<span class="evi evi-seen">【实锤】</span> {html.escape(f.replace("[实锤] ", ""))}'
+                badge = f'<span class="evi evi-seen">【实锤】</span> <b>{html.escape(f.replace("[实锤] ", ""))}</b>'
             elif "[机制实锤]" in f:
-                badge = f'<span class="evi evi-cap">【机制实锤】</span> {html.escape(f.replace("[机制实锤] ", ""))}'
+                badge = f'<span class="evi evi-cap">【机制实锤】</span> <b>{html.escape(f.replace("[机制实锤] ", ""))}</b>'
             else:
-                badge = f'<span class="evi evi-inf">【推断】</span> {html.escape(f)}'
-            findings_badges.append(f"<div>{badge}</div>")
+                badge = f'<span class="evi evi-inf">【推断】</span> <b>{html.escape(f)}</b>'
+            plain_desc = ""
+            for key, explain in PLAIN_EXPLANATIONS.items():
+                if key in f or (key == "HouseArrest" and "裸露文件" in f):
+                    plain_desc = f'<div class="text-small text-muted" style="margin:1px 0 6px 18px;">👉 <b>能干什么：</b>{html.escape(explain)}</div>'
+                    break
+            findings_badges.append(f"<div>{badge}{plain_desc}</div>")
+
+        if a["queried_schemes"]:
+            sc_preview = ", ".join(html.escape(s) for s in a["queried_schemes"][:8])
+            if len(a["queried_schemes"]) > 8:
+                sc_preview += f" 等共 {len(a['queried_schemes'])} 个"
+            findings_badges.append(
+                f'<div><span class="evi evi-seen">【实锤】</span> <b>🕵️ 查户口嗅探已安装应用 ({len(a["queried_schemes"])} 个暗号)</b>'
+                f'<div class="text-small text-muted" style="margin:1px 0 6px 18px;">👉 <b>能干什么：</b>在后台挨个试探你手机里有没有装特定 App（如 <code>{sc_preview}</code>），用来给你的资产、翻墙习惯或社交圈画像。</div></div>'
+            )
+
         if a["ats_exception_domains"]:
             doms = ", ".join(html.escape(d) for d in a["ats_exception_domains"])
             findings_badges.append(
-                f'<div><span class="evi evi-seen">【实锤】</span> ATS 降级/豁免域 ({len(a["ats_exception_domains"])}): <code>{doms}</code></div>'
+                f'<div><span class="evi evi-seen">【实锤】</span> <b>🎯 ATS 加密降级/豁免后门域 ({len(a["ats_exception_domains"])} 个):</b> <code>{doms}</code>'
+                f'<div class="text-small text-muted" style="margin:1px 0 6px 18px;">👉 <b>能干什么：</b>开发者专门向苹果申请对这些域名关闭强制 HTTPS 保护（允许明文传输或忽略证书校验），常暴露出第三方追踪 SDK、运营商取号接口或热更新后门。</div></div>'
             )
+
         if a["bg_modes"]:
-            bgs = ", ".join(html.escape(b) for b in a["bg_modes"])
+            bgs = " · ".join(f"<code>{html.escape(BG_MODE_LABELS.get(b, b))}</code>" for b in a["bg_modes"])
             findings_badges.append(
-                f'<div class="text-small text-muted">后台常驻模式 ({len(a["bg_modes"])}): <code>{bgs}</code></div>'
+                f'<div class="text-small" style="margin-top:4px;"><span class="text-muted">🔄 声明的后台常驻能力 ({len(a["bg_modes"])} 项):</span> {bgs}</div>'
             )
         score_color = "var(--red)" if a["score"] >= 80 else ("var(--orange)" if a["score"] >= 30 else "var(--muted-foreground)")
         top_rows_html.append(
@@ -363,11 +411,29 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
     <div class="card"><div class="card-body">
       <h3>📌 证据分级说明（参考 <a href="https://github.com/RootSir/claude-ios-privacy-analysis" style="color:var(--blue)">RootSir 证据审计标准</a>）</h3>
       <p class="text-small">
-        为避免将「静态配置存在」夸大为「实时作恶实锤」，本报告对每项结论实施严格的三级证据标注：<br>
+        为避免将「静态配置存在」夸大为「实时作恶实锤」，本报告对每项结论实施严格的三级证据标注，并在下方每条检出项下直接附带<b>「👉 能干什么」大白话解释</b>：<br>
         • <span class="evi evi-seen">【实锤 / VERIFIED】</span>：直接从 Apple 签名二进制 Entitlements、<code>Info.plist</code> 静态白名单或 <code>HouseArrest</code> 沙盒文件系统中提取到的确凿配置与暴露文件。<br>
         • <span class="evi evi-cap">【机制实锤 / CAPABILITY】</span>：应用持有 Apple 官方签发的特殊内核级豁免签名（如 <code>unrestricted-voip-regulatory</code>、<code>HotspotHelper</code>、<code>multipath</code>），具备随时绕过常规沙盒限制的底层能力（具体触发频率取决于服务端下发指令）。<br>
         • <span class="evi evi-inf">【推断 / INFERRED】</span>：基于共享 App Group 容器、Keychain 共享组及第三方风控/广告域名（如 <code>shuzilm.cn</code>、<code>id6.me</code>）的标准 SDK 行为推断其跨应用关联逻辑。
       </p>
+      <details style="margin-top:10px; border-top:1px solid var(--border); padding-top:10px;">
+        <summary style="cursor:pointer; font-weight:600; font-size:14px; color:var(--blue);">📖 看不懂专业术语？点此展开《iOS 底层特权与后台黑话「人话」危害速查词典》</summary>
+        <div class="table-responsive" style="margin-top:10px;">
+          <table class="table text-small">
+            <thead><tr><th>底层特权 / 标志位名称</th><th>大白话解释：它到底能干什么？</th></tr></thead>
+            <tbody>
+              <tr><td><code>unrestricted-voip-regulatory</code><br><b>监管特批无声 VoIP 唤醒</b></td><td>从 iOS 13 起苹果规定借道语音电话通道唤醒 App 必须弹出全屏来电界面，否则封杀；但持有该特批签名的超级 App（微信/QQ/钉钉），<b>服务器随时可以下发无声指令把你彻底划掉的后台死进程拉活干活，手机屏幕不亮、不响、毫无痕迹</b>。</td></tr>
+              <tr><td><code>HotspotHelper</code><br><b>系统级 Wi-Fi 扫描钩子</b></td><td>本来是给连公共 Wi-Fi 工具用的接口，如果外卖/支付/社交软件持有它，<b>只要你打开系统 Wi-Fi 列表或走过商场，iOS 内核就会自动唤醒它，把周围所有路由器的硬件 MAC 地址 (BSSID) 喂给它——哪怕你关了 GPS 定位，它也能反推出你在哪栋楼哪家店</b>。</td></tr>
+              <tr><td><code>multipath</code> / <code>network-authentication</code><br><b>穿 VPN 蜂窝直连与基站取号</b></td><td>允许 App 在连着家里 Wi-Fi 或挂着 VPN 代理时，<b>单独强行开启 4G/5G 蜂窝流量网卡直连移动/联通/电信网关</b>，不仅瞬间暴露你的真实 SIM 卡归属地和基站 IP，还能配合运营商网关静默提取你的本机手机号。</td></tr>
+              <tr><td><code>ubiquity-kvstore-identifier</code><br><b>iCloud 防卸载跨机烙印</b></td><td>把唯一设备追踪码偷偷写进你的私人 iCloud 云盘隐藏空间。<b>就算你卸载重装 App，甚至去苹果店买了一台全新 iPhone 登录同一个 Apple ID，它也能在后台秒级认出你还是原来那个人</b>。</td></tr>
+              <tr><td><code>multicast</code><br><b>局域网全屋设备探测</b></td><td>允许向你家里或公司的 Wi-Fi 发送多播探测包，<b>摸清你家里装了什么牌子的电视、NAS 存储、智能音箱、打印机或路由器</b>，用来精准评估你的家庭消费力与社会关系。</td></tr>
+              <tr><td><code>LSApplicationQueriesSchemes</code><br><b>URL Scheme 查户口嗅探</b></td><td>通过向系统挨个询问“能不能打开某个暗号（如 <code>shadowrocket://</code>、<code>binance://</code>、<code>porsche://</code>）”，<b>在不弹窗的情况下摸清你手机里有没有装翻墙软件、境外银行、冷钱包或豪车车企 App</b>。</td></tr>
+              <tr><td><code>UIFileSharingEnabled</code> / <code>HouseArrest</code><br><b>免 FaceID 裸露沙盒目录</b></td><td>App 把内部 <code>/Documents</code> 文件夹直接暴露在外部同步接口下。<b>只要手机插上信任过的电脑（或在同一局域网开启 Wi-Fi 同步），无需解锁 App 或验证 FaceID，1 秒钟就能直接列出甚至拷走里面的密码库、账单 PDF 与本地数据库</b>。</td></tr>
+              <tr><td><code>NSExceptionDomains</code><br><b>ATS 加密降级豁免域</b></td><td>苹果默认强制所有请求走安全 HTTPS；如果开发者在配置里专门点名某些域名允许明文 HTTP 或忽略证书校验，<b>顺藤摸瓜就能直接抓出它内部接入的第三方设备指纹库（如数字联盟 <code>shuzilm.cn</code>）、商业广告网（如秒针 <code>miaozhen.com</code>）甚至残留的热更新后门（<code>jspatch.com</code>）</b>。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
     </div></div>
 
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin:16px 0 8px;">
