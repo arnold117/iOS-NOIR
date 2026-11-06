@@ -225,6 +225,7 @@ BG_MODE_LABELS = {
     "external-accessory": ("🔌external-accessory (后台持续通信外接硬件配件)", "🔌external-accessory (Background hardware accessory comm)"),
     "nearby-interaction": ("📏nearby-interaction (后台超宽带空间测距)", "📏nearby-interaction (Background UWB spatial ranging)"),
     "push-to-talk": ("🎙️push-to-talk (后台对讲机实时语音唤醒)", "🎙️push-to-talk (Background walkie-talkie audio wakeup)"),
+    "network-authentication": ("📱network-authentication (蜂窝基站免密取号/SIM认证后台)", "📱network-authentication (Background cellular SIM/MDN auth)"),
 }
 
 
@@ -971,6 +972,12 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
                 findings_zh.append(label_zh)
                 findings_en.append(label_en)
 
+        if "network-authentication" in bg_modes and not ent.get("com.apple.developer.CellularNetwork.network-authentication"):
+            label_zh, label_en, pts, *_ = HIGH_RISK_ENTITLEMENTS["com.apple.developer.CellularNetwork.network-authentication"]
+            score += pts
+            findings_zh.append(label_zh)
+            findings_en.append(label_en)
+
         groups = ent.get("com.apple.security.application-groups", []) or []
         if isinstance(groups, str):
             groups = [groups]
@@ -1055,6 +1062,7 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
                 "has_multipath": bool(ent.get("com.apple.developer.networking.multipath")),
                 "has_net_auth": bool(
                     ent.get("com.apple.developer.CellularNetwork.network-authentication")
+                    or ("network-authentication" in bg_modes)
                 ),
                 "has_hotspot_helper": bool(ent.get("com.apple.developer.networking.HotspotHelper")),
                 "has_unrestricted_voip": bool(
