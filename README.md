@@ -73,13 +73,13 @@ Plug in your iPhone, unlock the screen, and tap **"Trust This Computer"**.
 
 ### 3. Run Full Audit (Terminal + Standalone 6-Tab HTML Report)
 ```bash
-# Run full audit (outputs JSON, domains, and interactive HTML report to noir-out/)
+# Run full audit (outputs JSON, domains, and interactive bilingual HTML report to noir-out/)
 python ios_noir.py scan
 
-# Run in redacted mode (hides personal device name & filenames for safe sharing on X/Twitter)
-python ios_noir.py scan --redact
+# Run in English terminal mode + redacted mode for safe sharing on X/Twitter/HN
+python ios_noir.py scan --lang en --redact
 
-# Open the generated interactive HTML report in your browser
+# Open the generated interactive HTML report (includes top-right 🇨🇳 中文 / 🇺🇸 English switch)
 open noir-out/ios-noir-report.html
 ```
 

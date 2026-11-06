@@ -79,10 +79,10 @@ pip install -r requirements.txt
 # 运行完整审计（输出至 noir-out/）
 python ios_noir.py scan
 
-# 脱敏截图模式（自动隐藏设备名称与暴露的具体私人文件名，方便直接截图或导出分享）
-python ios_noir.py scan --redact
+# 英文终端输出 + 脱敏截图模式（方便发英文推文 / Hacker News）
+python ios_noir.py scan --lang en --redact
 
-# 在浏览器中直接打开生成的独立交互式 HTML 取证报告
+# 在浏览器中打开交互式 HTML 报告（网页右上角自带「🇨🇳 简体中文 / 🇺🇸 English」一键切换按钮）
 open noir-out/ios-noir-report.html
 ```
 
