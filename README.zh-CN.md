@@ -12,8 +12,6 @@
 
 **把「这台未越狱的 iPhone 到底在暗中泄露什么」变成一份带三级证据标注的可复现底层取证报告。**
 
-📊 **完整交互式 HTML 报告样本（7 大标签页，支持深浅色模式与中英文一键切换）：** [`report/ios-noir-sample-report.html`](report/ios-noir-sample-report.html) *（下载后用任意浏览器直接打开）*
-
 > 💡 **致敬 / Inspired by**  
 > - **工具架构与本地优先理念**：受 [**Verlintas/NOIR**](https://github.com/Verlintas/NOIR)（基于 `adb` 的 Android 本地隐私审计工具）启发。  
 > - **三级证据分级体系、五层持久设备身份链与独立交互式 HTML 报告**：深度借鉴 [**RootSir/claude-ios-privacy-analysis**](https://github.com/RootSir/claude-ios-privacy-analysis) 的严谨取证标准与可视化报告范式。

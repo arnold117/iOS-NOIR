@@ -13,8 +13,6 @@
 **Turn "What is my iPhone silently leaking?" into a reproducible, evidence-graded forensic report — without jailbreaking.**  
 **把「这台未越狱的 iPhone 到底在暗中泄露什么」变成一份带三级证据标注的可复现底层取证报告。**
 
-📊 **Sample Standalone Interactive Report (7-Tab HTML):** [`report/ios-noir-sample-report.html`](report/ios-noir-sample-report.html) *(Download & open directly in any browser)*
-
 > 💡 **Acknowledgements / 致敬**  
 > - **Architecture & CLI Flow:** Inspired by [**Verlintas/NOIR**](https://github.com/Verlintas/NOIR) (the local-first Android privacy auditor over `adb`).  
 > - **Evidence Tiering, 5-Layer Persistent Identity Chain & Standalone HTML Report:** Inspired by [**RootSir/claude-ios-privacy-analysis**](https://github.com/RootSir/claude-ios-privacy-analysis).
