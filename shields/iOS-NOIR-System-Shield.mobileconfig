@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <array>
+        <dict>
+            <key>DNSSettings</key>
+            <dict>
+                <key>DNSProtocol</key>
+                <string>HTTPS</string>
+                <key>ServerURL</key>
+                <string>https://dns.adguard-dns.com/dns-query</string>
+            </dict>
+            <key>OnDemandRules</key>
+            <array>
+                <dict>
+                    <key>Action</key>
+                    <string>EvaluateConnection</string>
+                    <key>ActionParameters</key>
+                    <array>
+                        <dict>
+                            <key>DomainAction</key>
+                            <string>NeverConnect</string>
+                            <key>Domains</key>
+                            <array>
+                                <string>captive.apple.com</string>
+                                <string>dav.orange.fr</string>
+                                <string>vvm.mobistar.be</string>
+                            </array>
+                        </dict>
+                    </array>
+                </dict>
+                <dict>
+                    <key>Action</key>
+                    <string>Connect</string>
+                </dict>
+            </array>
+            <key>PayloadDescription</key>
+            <string>iOS-NOIR 系统级加密 DNS 隐私防火墙（免 VPN、零后台耗电、自动拦截广告与追踪 SDK 域名）</string>
+            <key>PayloadDisplayName</key>
+            <string>iOS-NOIR Encrypted DNS Shield</string>
+            <key>PayloadIdentifier</key>
+            <string>com.iosnoir.dns.shield.payload</string>
+            <key>PayloadType</key>
+            <string>com.apple.dnsSettings.managed</string>
+            <key>PayloadUUID</key>
+            <string>8A9C2F1E-4B3D-4E5A-9C1B-7D6E5F4A3B2C</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>ProhibitDisablement</key>
+            <false/>
+        </dict>
+    </array>
+    <key>PayloadDescription</key>
+    <string>无需开启 VPN，直接在 iOS 内核网络栈接管 DNS 解析，加密防止运营商嗅探并拦截主流追踪器与广告 SDK。当你开启 Shadowrocket 时会自动无缝让位。</string>
+    <key>PayloadDisplayName</key>
+    <string>🛡️ iOS-NOIR 系统级隐私防火墙 (免VPN)</string>
+    <key>PayloadIdentifier</key>
+    <string>com.iosnoir.dns.shield</string>
+    <key>PayloadOrganization</key>
+    <string>iOS-NOIR Local Audit</string>
+    <key>PayloadRemovalDisallowed</key>
+    <false/>
+    <key>PayloadType</key>
+    <string>Configuration</string>
+    <key>PayloadUUID</key>
+    <string>1F2E3D4C-5B6A-4789-8A9B-0C1D2E3F4A5B</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+</dict>
+</plist>

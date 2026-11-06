@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Local device audit outputs & sensitive dumps (NEVER COMMIT)
+noir-out/
+all_crashes/
+crash_samples/
+*.json
+*.pcapng
+*.log
+*.ips
+*.sqlite*
+*.kdbx
+*.pdf
+
+# Keep template/config files
+!package.json
+.DS_Store
