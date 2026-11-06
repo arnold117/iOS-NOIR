@@ -12,7 +12,7 @@
 
 **把「这台未越狱的 iPhone 到底在暗中泄露什么」变成一份带三级证据标注的可复现底层取证报告。**
 
-📊 **完整交互式 HTML 报告样本（6 大标签页，支持深浅色模式）：** [`report/ios-noir-sample-report.html`](report/ios-noir-sample-report.html) *（下载后用任意浏览器直接打开）*
+📊 **完整交互式 HTML 报告样本（7 大标签页，支持深浅色模式与中英文一键切换）：** [`report/ios-noir-sample-report.html`](report/ios-noir-sample-report.html) *（下载后用任意浏览器直接打开）*
 
 > 💡 **致敬 / Inspired by**  
 > - **工具架构与本地优先理念**：受 [**Verlintas/NOIR**](https://github.com/Verlintas/NOIR)（基于 `adb` 的 Android 本地隐私审计工具）启发。  
@@ -47,9 +47,10 @@
 
 ### 🚨 其他高危后门检出项
 - **监管特批：无限制静默 VoIP 后台唤醒（`unrestricted-voip-regulatory`）** `【机制实锤】`：揪出持有苹果未公开监管豁免签名的超级 App（微信、QQ、钉钉），允许服务器下发无声 PushKit 指令把后台死进程静默拉活上万次，**屏幕不亮、不响、不留痕迹**。
-- **“查户口式”已安装应用嗅探（`LSApplicationQueriesSchemes`）** `【实锤】`：揭穿单个查航班或社交软件内置多达 **280 个** URL Scheme 白名单，挨个嗅探你装没装小火箭 (`shadowrocket`)、海外银行、冷钱包或 15+ 家豪车 App。
-- **无需 FaceID！USB / Wi-Fi 1 秒掏空沙盒文件漏洞（`UIFileSharingEnabled` / `HouseArrest`）** `【实锤】`：实测扫描哪些 App 将 `/Documents` 裸露在 USB 与局域网 Wi-Fi 同步接口下——无需解锁 App 即可直接枚举暴露的 `.kdbx` 密码库、银行对账单 PDF 及 `Sentiance` AI 行程追踪数据库。
-- **ATS 加密降级与隐秘端点抽取（`NSExceptionDomains`）** `【实锤】`：静态抽取点名降级 HTTPS 的后门域名（当场抓获残留的 `jspatch.com` 远程热更新代码执行后门、`shuzilm.cn` 数字联盟指纹，以及视频会议软件内嵌的 12 家商业广告监测网）。
+- **“查户口式”已安装应用嗅探（`LSApplicationQueriesSchemes`）与 URL 协议头恶意抢注劫持（`CFBundleURLSchemes`）** `【实锤】`：揭穿单个软件内置多达 **120~280 个** URL Scheme 白名单嗅探小火箭 (`shadowrocket`)、海外银行与豪车 App；同时检测全机 **38 组 URL Scheme 撞车劫持**（如 4 款软件同时抢注 `tc://` TON Connect 冷钱包连接协议、17 款软件抢注 `prefs://`）。
+- **无需 FaceID！USB / Wi-Fi 1 秒掏空沙盒（`HouseArrest`）与系统级 `AFC` 根目录数据库裸露（`AfcService`）** `【实锤】`：实测扫描哪些 App 将 `/Documents` 裸露在外部接口下（暴露 `.kdbx` 密码库与银行账单 PDF），并检测无需开发者模式即可免密直读的 `/MediaAnalysis/MediaAnalysis.sqlite`（全机照片与截图 AI 实况文本 OCR 索引总库）与 `/PhotoData/Photos.sqlite`。
+- **ATS 加密降级（`NSExceptionDomains`）与局域网 Bonjour / 车机外设协议探针（`NSBonjourServices`）** `【实锤】`：静态抽取点名降级 HTTPS 的后门域名（`jspatch.com` 热更新后门、`shuzilm.cn` 数字联盟指纹），以及局域网 mDNS 广播探针（`_shadowrocket._tcp`、`_x5_gw._tcp`）和车机/智能眼镜协议指纹（宝马 `com.bmw.a4a1`、福特 `com.ford.sync.prot0`、Meta 眼镜 `com.facebook.stella`）。
+- **内核诊断黑匣子 `.ips` 深度取证（后台 >1.07GB/天「闪存寿命杀手」、CPU 断头台与免越狱动态库剥离）** `【实锤】`：直接解析 iOS 内核 `.ips` 诊断日志，揪出单日后台偷偷写盘超 `1.07 GB` 警戒线的闪存狂魔（如微信单次后台狂写 17.18 GB），并从崩溃符号表 (`usedImages`) 免越狱剥离出后台推送插件内嵌的 `TMXBehavioSec`（键盘敲击/滑动轨迹行为生物识别库）等私有 Framework。
 
 ---
 
@@ -93,8 +94,12 @@ python ios_noir.py radar --duration 30
 
 1. **免 VPN 系统级原生加密 DNS 护盾（[`shields/iOS-NOIR-System-Shield.mobileconfig`](shields/iOS-NOIR-System-Shield.mobileconfig)）**  
    基于苹果原生 `com.apple.dnsSettings.managed` 内核配置。通过隔空投送（AirDrop）发到手机安装后，**无需开启 VPN、零后台进程、零额外耗电**，由 iOS 内核网络栈 24 小时加密 DNS 查询并黑洞拦截主流追踪器域名；开启 Shadowrocket / Clash 时自动无缝让位，关闭 VPN 后 0 秒自动接管。
-2. **分流拦截规则集（[`shields/ios_noir_shield.conf`](shields/ios_noir_shield.conf)）**  
-   兼容 **Shadowrocket / Surge / Loon / Clash**，精准 `REJECT` 三大运营商免密取号网关（`cmpassport.com` / `wostore.cn` / `id6.me`）、数字联盟跨应用设备 DNA 指纹（`shuzilm.cn`）、`jspatch.com` 热更新后门、`online-metrix.net` 行为生物特征探针及主流广告遥测端点。
+2. **一键挂载小火箭 / Surge 叠加拦截模块（[`shields/ios_noir_shield.module`](shields/ios_noir_shield.module) & [`shields/ios_noir_shield.conf`](shields/ios_noir_shield.conf)）**  
+   采用非破坏性 `.module` 叠加模块格式（**不会覆盖你现有的主配置和节点分流**）。可在 **Shadowrocket ➔ 配置 ➔ 模块 ➔ 右上角 `+`** 中直接粘贴以下链接一键挂载：
+   ```text
+   https://raw.githubusercontent.com/arnold117/iOS-NOIR/main/shields/ios_noir_shield.module
+   ```
+   精准 `REJECT` 三大运营商免密取号网关（`cmpassport.com` / `wostore.cn` / `id6.me`）、数字联盟跨应用设备 DNA 指纹（`shuzilm.cn`）、`jspatch.com` 热更新后门、`online-metrix.net` 行为生物特征探针及主流广告遥测端点。
 
 ---
 

@@ -13,7 +13,7 @@
 **Turn "What is my iPhone silently leaking?" into a reproducible, evidence-graded forensic report — without jailbreaking.**  
 **把「这台未越狱的 iPhone 到底在暗中泄露什么」变成一份带三级证据标注的可复现底层取证报告。**
 
-📊 **Sample Standalone Interactive Report (6-Tab HTML):** [`report/ios-noir-sample-report.html`](report/ios-noir-sample-report.html) *(Download & open directly in any browser)*
+📊 **Sample Standalone Interactive Report (7-Tab HTML):** [`report/ios-noir-sample-report.html`](report/ios-noir-sample-report.html) *(Download & open directly in any browser)*
 
 > 💡 **Acknowledgements / 致敬**  
 > - **Architecture & CLI Flow:** Inspired by [**Verlintas/NOIR**](https://github.com/Verlintas/NOIR) (the local-first Android privacy auditor over `adb`).  
@@ -44,9 +44,10 @@ Why does turning off `Allow Apps to Request to Track (IDFA)`, connecting to a VP
 
 ### 🚨 Additional Hidden Backdoors Exposed
 - **Regulatory Unrestricted Silent VoIP Wakeups (`unrestricted-voip-regulatory`)** `【机制实锤】`: Detects super-apps (e.g., WeChat, QQ, DingTalk) holding Apple's undocumented regulatory exemption to wake dead background processes via silent PushKit payloads without displaying a CallKit UI.
-- **App-List Probing (`LSApplicationQueriesSchemes`)** `【实锤】`: Uncovers apps hardcoding up to **280+ URL schemes** to probe whether you have VPN clients (`shadowrocket`), crypto wallets, foreign banks, or luxury car apps installed.
-- **USB / Wi-Fi Sandbox Exposure (`UIFileSharingEnabled` / `HouseArrest`)** `【实锤】`: Audits apps exposing their `/Documents` container over USB/Wi-Fi without FaceID — catching exposed `.kdbx` password vaults, bank statements, and plaintext `Sentiance` AI timeline SQLite databases.
-- **ATS Exception Endpoint Extraction (`NSExceptionDomains`)** `【实锤】`: Extracts domains where developers explicitly downgrade HTTPS or bypass certificate checks (uncovering legacy `jspatch.com` hot-patching backdoors, `shuzilm.cn` DNA fingerprinting, and 12 ad exchanges inside enterprise meeting apps).
+- **App-List Probing (`LSApplicationQueriesSchemes`) & URL Scheme Hijacking (`CFBundleURLSchemes`)** `【实锤】`: Uncovers apps hardcoding up to **280+ URL schemes** to probe whether you have VPN clients (`shadowrocket`), crypto wallets, or luxury car apps installed — plus detects **URL Scheme collisions** (e.g., 4 apps simultaneously hijacking `tc://` TON Connect or 17 apps hijacking `prefs://`).
+- **USB / Wi-Fi Sandbox (`HouseArrest`) & System AFC Root Database Exposure (`AfcService`)** `【实锤】`: Audits apps exposing their `/Documents` container over USB/Wi-Fi without FaceID (catching exposed `.kdbx` password vaults and bank statements) AND checks unauthenticated `AFC` root exposure of `/MediaAnalysis/MediaAnalysis.sqlite` (Apple Live Text OCR index of all photos/screenshots) and `/PhotoData/Photos.sqlite`.
+- **ATS Exception Endpoints (`NSExceptionDomains`) & LAN/Car Protocol Probes (`NSBonjourServices`)** `【实锤】`: Extracts domains where developers explicitly downgrade HTTPS (uncovering `jspatch.com` hot-patching backdoors and `shuzilm.cn` DNA fingerprinting), plus local mDNS probes (`_shadowrocket._tcp`, `_x5_gw._tcp`) and automotive/hardware accessory protocols (`com.bmw.a4a1`, `com.ford.sync.prot0`, `com.facebook.stella`).
+- **Kernel `.ips` Diagnostic Black-Box Forensics (`bug_type 145/202` & `usedImages`)** `【实锤】`: Parses iOS kernel `.ips` logs to expose **Background Flash-Write Monsters** exceeding `1.07 GB/day` (e.g., WeChat writing 17.18 GB in the background), CPU guillotine kills, and embedded binary SDKs (`TMXBehavioSec` behavioral biometrics inside background notification extensions, custom QUIC stacks) without jailbreaking.
 
 ---
 
@@ -90,8 +91,12 @@ python ios_noir.py radar --duration 30
 
 1. **VPN-Free Kernel Encrypted DNS Shield ([`shields/iOS-NOIR-System-Shield.mobileconfig`](shields/iOS-NOIR-System-Shield.mobileconfig))**  
    Uses Apple's native `com.apple.dnsSettings.managed` payload. AirDrop it to your iPhone to block trackers and encrypt DNS over HTTPS at the OS kernel level **24/7 without keeping a VPN connected or draining battery**. Automatically yields when you turn on Shadowrocket/Clash and resumes the moment VPN disconnects.
-2. **Packet-Tunnel Reject Rules ([`shields/ios_noir_shield.conf`](shields/ios_noir_shield.conf))**  
-   Drop-in rule set for **Shadowrocket / Surge / Loon / Clash** that blocks carrier silent-auth gateways (`cmpassport.com`, `wostore.cn`, `id6.me`), cross-app DNA fingerprinting (`shuzilm.cn`), hot-patch backdoors (`jspatch.com`), behavioral biometrics (`online-metrix.net`), and major ad-tech telemetry.
+2. **1-Click Shadowrocket / Surge Overlay Module ([`shields/ios_noir_shield.module`](shields/ios_noir_shield.module) & [`shields/ios_noir_shield.conf`](shields/ios_noir_shield.conf))**  
+   Non-destructive overlay module for **Shadowrocket / Surge / Loon / Clash** (won't overwrite your main proxy config). Import directly in Shadowrocket (`Config -> Modules -> +`) via URL:
+   ```text
+   https://raw.githubusercontent.com/arnold117/iOS-NOIR/main/shields/ios_noir_shield.module
+   ```
+   Blocks carrier silent-auth gateways (`cmpassport.com`, `wostore.cn`, `id6.me`), cross-app DNA fingerprinting (`shuzilm.cn`), hot-patch backdoors (`jspatch.com`), behavioral biometrics (`online-metrix.net`), and major ad-tech telemetry.
 
 ---
 
