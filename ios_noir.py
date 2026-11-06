@@ -134,11 +134,18 @@ def build_html_report(report_data: dict, redact: bool = False) -> str:
     layer_voip = [a for a in apps if a.get("has_unrestricted_voip")]
     layer_ats = [a for a in apps if a.get("ats_exception_domains")]
     layer_sandbox = [a for a in apps if a.get("exposed_files_count", 0) > 0]
-    top_probers = sorted(apps, key=lambda x: len(x.get("queried_schemes", [])), reverse=True)[:20]
+    all_probers = [
+        a for a in sorted(apps, key=lambda x: len(x.get("queried_schemes", [])), reverse=True)
+        if a.get("queried_schemes")
+    ]
+    flagged_apps = [
+        a for a in apps
+        if a["score"] > 0 or a["findings"] or a["ats_exception_domains"] or a["queried_schemes"] or a["bg_modes"]
+    ]
 
-    # Top risk rows
+    # All audited risk rows (no truncation!)
     top_rows_html = []
-    for a in apps[:30]:
+    for idx, a in enumerate(apps, 1):
         findings_badges = []
         for f in a["findings"]:
             if "[实锤]" in f:
@@ -149,22 +156,27 @@ def build_html_report(report_data: dict, redact: bool = False) -> str:
                 badge = f'<span class="evi evi-inf">【推断】</span> {html.escape(f)}'
             findings_badges.append(f"<div>{badge}</div>")
         if a["ats_exception_domains"]:
-            doms = ", ".join(html.escape(d) for d in a["ats_exception_domains"][:6])
-            if len(a["ats_exception_domains"]) > 6:
-                doms += f" (+{len(a['ats_exception_domains']) - 6})"
+            doms = ", ".join(html.escape(d) for d in a["ats_exception_domains"])
             findings_badges.append(
-                f'<div><span class="evi evi-seen">【实锤】</span> ATS 降级/豁免域: <code>{doms}</code></div>'
+                f'<div><span class="evi evi-seen">【实锤】</span> ATS 降级/豁免域 ({len(a["ats_exception_domains"])}): <code>{doms}</code></div>'
             )
+        if a["bg_modes"]:
+            bgs = ", ".join(html.escape(b) for b in a["bg_modes"])
+            findings_badges.append(
+                f'<div class="text-small text-muted">后台常驻模式 ({len(a["bg_modes"])}): <code>{bgs}</code></div>'
+            )
+        score_color = "var(--red)" if a["score"] >= 80 else ("var(--orange)" if a["score"] >= 30 else "var(--muted-foreground)")
         top_rows_html.append(
-            f"<tr>"
-            f'<td class="text-end"><b style="color:var(--red)">{a["score"]}</b></td>'
+            f'<tr class="audit-row" data-score="{a["score"]}">'
+            f'<td class="text-end text-muted">{idx}</td>'
+            f'<td class="text-end"><b style="color:{score_color}">{a["score"]}</b></td>'
             f'<td><b>{html.escape(a["name"])}</b><br><code class="mono">{html.escape(a["bundle_id"])}</code> <span class="text-muted text-small">v{html.escape(str(a["version"]))}</span></td>'
             f'<td class="text-nowrap">后台: <b>{len(a["bg_modes"])}</b><br>嗅探: <b>{len(a["queried_schemes"])}</b><br>插件: <b>{a.get("extensions_count", 0)}</b></td>'
-            f'<td>{"".join(findings_badges) or "<span class=text-muted>常规权限</span>"}</td>'
+            f'<td>{"".join(findings_badges) or "<span class=text-muted>零特权越界 (Clean)</span>"}</td>'
             f"</tr>"
         )
 
-    # ATS rows
+    # ATS rows (all detected)
     ats_rows_html = []
     for a in sorted(layer_ats, key=lambda x: len(x["ats_exception_domains"]), reverse=True):
         doms_code = " ".join(f"<code>{html.escape(d)}</code>" for d in a["ats_exception_domains"])
@@ -177,9 +189,9 @@ def build_html_report(report_data: dict, redact: bool = False) -> str:
             f"</tr>"
         )
 
-    # App Group rows
+    # App Group rows (all detected)
     group_rows_html = []
-    for gid, members in sorted(shared_groups.items(), key=lambda x: len(x[1]), reverse=True)[:25]:
+    for gid, members in sorted(shared_groups.items(), key=lambda x: len(x[1]), reverse=True):
         m_str = "、".join(f"<b>{html.escape(m.split(' (')[0])}</b> (<code>{html.escape(m.split(' (')[1][:-1])}</code>)" for m in members)
         group_rows_html.append(
             f"<tr>"
@@ -190,10 +202,10 @@ def build_html_report(report_data: dict, redact: bool = False) -> str:
             f"</tr>"
         )
 
-    # Sandbox rows
+    # Sandbox rows (all detected)
     sandbox_rows_html = []
     for a in sorted(layer_sandbox, key=lambda x: x["exposed_files_count"], reverse=True):
-        samples = ", ".join(f"<code>{html.escape(s)}</code>" for s in a["exposed_files_sample"][:10])
+        samples = ", ".join(f"<code>{html.escape(s)}</code>" for s in a["exposed_files_sample"])
         sandbox_rows_html.append(
             f"<tr>"
             f'<td><b>{html.escape(a["name"])}</b><br><code class="mono">{html.escape(a["bundle_id"])}</code></td>'
@@ -203,14 +215,10 @@ def build_html_report(report_data: dict, redact: bool = False) -> str:
             f"</tr>"
         )
 
-    # Probers rows
+    # Probers rows (all detected)
     prober_rows_html = []
-    for a in top_probers:
-        if not a["queried_schemes"]:
-            continue
-        sample_sc = ", ".join(f"<code>{html.escape(s)}</code>" for s in a["queried_schemes"][:15])
-        if len(a["queried_schemes"]) > 15:
-            sample_sc += f" <span class='text-muted'>... 共 {len(a['queried_schemes'])} 个</span>"
+    for a in all_probers:
+        sample_sc = ", ".join(f"<code>{html.escape(s)}</code>" for s in a["queried_schemes"])
         prober_rows_html.append(
             f"<tr>"
             f'<td><b>{html.escape(a["name"])}</b><br><code class="mono">{html.escape(a["bundle_id"])}</code></td>'
@@ -342,11 +350,11 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
   </div>
 
   <div class="nav-pills" role="tablist">
-    <button class="nav-link active" role="tab" aria-selected="true" aria-controls="p-overview" id="tab-overview">1. 核心发现与高危榜 (TL;DR)</button>
+    <button class="nav-link active" role="tab" aria-selected="true" aria-controls="p-overview" id="tab-overview">1. 全量应用审计榜 ({len(flagged_apps)} 检出 / {len(apps)} 总计)</button>
     <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-identity" id="tab-identity">2. 五层持久设备身份与穿 VPN 链</button>
-    <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-probers" id="tab-probers">3. URL Scheme 查户口嗅探 ({len(top_probers)})</button>
+    <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-probers" id="tab-probers">3. URL Scheme 查户口嗅探 ({len(all_probers)})</button>
     <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-ats" id="tab-ats">4. ATS 加密降级与隐秘端点 ({len(layer_ats)})</button>
-    <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-collusion" id="tab-collusion">5. 跨应用串通与沙盒裸奔</button>
+    <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-collusion" id="tab-collusion">5. 跨应用串通 ({len(shared_groups)}) 与沙盒裸奔 ({len(layer_sandbox)})</button>
     <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-method" id="tab-method">6. 证据分级与方法论局限</button>
   </div>
 
@@ -362,10 +370,18 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
       </p>
     </div></div>
 
-    <h3>🔥 隐私越界与隐秘后门风险排行榜（Top 30）</h3>
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin:16px 0 8px;">
+      <h3 style="margin:0;">🔥 全量应用隐私越界与隐秘后门审计表（共 {len(apps)} 款，检出权限/后台/嗅探行为 {len(flagged_apps)} 款）</h3>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <input id="app-search" type="search" placeholder="🔍 搜索应用名 / Bundle ID / 特权 / 域名..." style="padding:6px 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); min-width:260px; font-size:13.5px;">
+        <label class="text-small" style="cursor:pointer; user-select:none;">
+          <input type="checkbox" id="only-flagged" checked> 仅显示检出特权/后台/嗅探项 ({len(flagged_apps)} 款)
+        </label>
+      </div>
+    </div>
     <div class="table-responsive">
-      <table class="table">
-        <thead><tr><th class="text-end">风险分</th><th>应用名称 / Bundle ID</th><th>后台/嗅探/插件</th><th>检出的底层特权与硬编码证据（含证据等级）</th></tr></thead>
+      <table class="table" id="audit-table">
+        <thead><tr><th class="text-end">#</th><th class="text-end">风险分</th><th>应用名称 / Bundle ID</th><th>后台/嗅探/插件</th><th>检出的底层特权与硬编码证据（全量无截断，含证据等级）</th></tr></thead>
         <tbody>
           {"".join(top_rows_html)}
         </tbody>
@@ -376,28 +392,28 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
   <!-- TAB 2: 5-LAYER PERSISTENT IDENTITY -->
   <div id="p-identity" role="tabpanel" aria-labelledby="tab-identity" hidden>
     <h3>🧬 五层持久设备身份链与穿 VPN 路径分析</h3>
-    <p class="text-muted text-small">为什么在 iOS 上「关闭广告追踪 (IDFA) + 开启 VPN + 卸载重装 App」依然无法阻止国内大厂与风控 SDK 精准识别同一台物理手机？以下为本机实测检出的五层硬件/系统级锚点：</p>
+    <p class="text-muted text-small">为什么在 iOS 上「关闭广告追踪 (IDFA) + 开启 VPN + 卸载重装 App」依然无法阻止国内大厂与风控 SDK 精准识别同一台物理手机？以下为本机实测检出的五层硬件/系统级锚点（全量列出）：</p>
 
     <div class="card"><div class="card-body">
-      <h4>第 1 层：跨设备、防恢复出厂的「iCloud 云端隐藏烙印」（检出 {len(layer_icloud)} 款） <span class="evi evi-seen">【实锤】</span></h4>
+      <h4>第 1 层：跨设备、防恢复出厂的「iCloud 云端隐藏烙印」（全量检出 {len(layer_icloud)} 款） <span class="evi evi-seen">【实锤】</span></h4>
       <p class="text-small">持有 <code>com.apple.developer.ubiquity-kvstore-identifier</code> 签名的应用可将唯一设备 Token 写入用户私人 iCloud KVS 云空间。<b>即便卸载重装 App，甚至购买新 iPhone 登录同一 Apple ID，该追踪烙印也会在后台秒级同步恢复。</b></p>
-      <p class="text-small"><b>本机检出代表应用：</b> {", ".join(f"<code>{html.escape(a['name'])}</code>" for a in layer_icloud[:25])} {"..." if len(layer_icloud) > 25 else ""}</p>
+      <p class="text-small"><b>本机检出全部应用：</b> {", ".join(f"<code>{html.escape(a['name'])}</code>" for a in layer_icloud)}</p>
     </div></div>
 
     <div class="card"><div class="card-body">
-      <h4>第 2 层：防卸载的「同厂商钥匙串持久化 (`keychain-access-groups`)」（检出 {len(shared_keychains)} 个跨应用钥匙串前缀） <span class="evi evi-seen">【实锤】</span></h4>
+      <h4>第 2 层：防卸载的「同厂商钥匙串持久化 (`keychain-access-groups`)」（全量检出 {len(shared_keychains)} 个跨应用钥匙串前缀） <span class="evi evi-seen">【实锤】</span></h4>
       <p class="text-small">iOS 系统级特性：应用写入 Keychain 的数据在<b>卸载 App 后依然永久保留在系统钥匙串数据库中</b>；且同一开发者 Team ID 下的多款应用可共享同一 Keychain 组。重装或安装同系新 App 时瞬间恢复老设备身份 ID。</p>
     </div></div>
 
     <div class="card"><div class="card-body">
-      <h4>第 3 层：跨应用沙盒串通池 (`com.apple.security.application-groups`)（检出 {summary['shared_app_groups_count']} 个多应用共享池） <span class="evi evi-seen">【实锤】</span></h4>
+      <h4>第 3 层：跨应用沙盒串通池 (`com.apple.security.application-groups`)（全量检出 {summary['shared_app_groups_count']} 个多应用共享池） <span class="evi evi-seen">【实锤】</span></h4>
       <p class="text-small">只要同一集团矩阵（如阿里系、腾讯系、字节系、Google 系、Meta 系）中有<b>任意 1 款</b>应用留在手机上，共享容器 <code>group.*</code> 内的设备指纹与会话文件就不会被系统清理。</p>
     </div></div>
 
     <div class="card"><div class="card-body">
-      <h4>第 4 层：绕过 Wi-Fi 与普通 VPN 的「蜂窝基站直连通道」（检出 {len(layer_multipath)} 款） <span class="evi evi-cap">【机制实锤】</span></h4>
+      <h4>第 4 层：绕过 Wi-Fi 与普通 VPN 的「蜂窝基站直连通道」（全量检出 {len(layer_multipath)} 款） <span class="evi evi-cap">【机制实锤】</span></h4>
       <p class="text-small">持有 <code>com.apple.developer.networking.multipath</code> 或 <code>network-authentication</code> 特权的应用，可在连接 Wi-Fi 或开启代理时，强行指定底层 Socket 绑定蜂窝数据网卡 (<code>pdp_ip0</code>) 直连三大运营商网关（<code>cmpassport.com</code> / <code>wostore.cn</code> / <code>id6.me</code>），不仅暴露真实 SIM 卡归属地与基站出口 IP，还可配合网关完成本机号码校验。</p>
-      <p class="text-small"><b>本机检出代表应用：</b> {", ".join(f"<code>{html.escape(a['name'])}</code>" for a in layer_multipath[:25])}</p>
+      <p class="text-small"><b>本机检出全部应用：</b> {", ".join(f"<code>{html.escape(a['name'])}</code>" for a in layer_multipath)}</p>
     </div></div>
 
     <div class="card"><div class="card-body">
@@ -498,6 +514,24 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
       if (panel) panel.hidden = false;
     }});
   }});
+
+  var searchInput = document.getElementById('app-search');
+  var onlyFlagged = document.getElementById('only-flagged');
+  function filterRows() {{
+    var q = (searchInput ? searchInput.value : '').toLowerCase().trim();
+    var flaggedOnly = onlyFlagged ? onlyFlagged.checked : false;
+    var rows = document.querySelectorAll('#audit-table tbody tr.audit-row');
+    rows.forEach(function (r) {{
+      var score = parseInt(r.getAttribute('data-score') || '0', 10);
+      var text = r.textContent.toLowerCase();
+      var matchQuery = !q || text.indexOf(q) !== -1;
+      var matchFlag = !flaggedOnly || score > 0 || text.indexOf('零特权越界') === -1;
+      r.style.display = (matchQuery && matchFlag) ? '' : 'none';
+    }});
+  }}
+  if (searchInput) searchInput.addEventListener('input', filterRows);
+  if (onlyFlagged) onlyFlagged.addEventListener('change', filterRows);
+  filterRows();
 }})();
 </script>
 </body>
@@ -649,8 +683,12 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
     results.sort(key=lambda x: x["score"], reverse=True)
 
     # Top Risk Table
+    flagged_results = [
+        r for r in results
+        if r["score"] > 0 or r["findings"] or r["ats_exception_domains"]
+    ]
     t = Table(
-        title="🚨 iOS-NOIR 隐私越界与隐秘后门风险榜 (Top 15)",
+        title=f"🚨 iOS-NOIR 隐私越界与隐秘后门全量检出榜 (共检出 {len(flagged_results)} / {len(results)} 款应用)",
         box=box.ROUNDED,
         show_lines=True,
     )
@@ -659,10 +697,10 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
     t.add_column("后台/嗅探", style="yellow", width=16)
     t.add_column("检出的底层特权与硬编码证据 (附证据分级)", style="cyan")
 
-    for r in results[:15]:
-        desc = "\n".join(r["findings"]) if r["findings"] else "[dim]常规权限[/dim]"
+    for r in flagged_results:
+        desc = "\n".join(r["findings"]) if r["findings"] else "[dim]后台常驻 / URL 嗅探[/dim]"
         if r["ats_exception_domains"]:
-            dom_preview = ", ".join(r["ats_exception_domains"][:4])
+            dom_preview = ", ".join(r["ats_exception_domains"][:6])
             desc += f"\n[magenta]🎯 [实锤] ATS豁免域: {dom_preview}[/magenta]"
         t.add_row(
             str(r["score"]),
@@ -678,31 +716,31 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
     scheme_collisions = {k: v for k, v in url_scheme_owners.items() if len(v) >= 2}
 
     t2 = Table(
-        title="🔗 跨 App 共享数据池 (突破沙盒暗中串通容器 Top 10)",
+        title=f"🔗 跨 App 共享数据池 (突破沙盒暗中串通容器 共 {len(shared_groups)} 组)",
         box=box.SIMPLE_HEAVY,
     )
     t2.add_column("共享容器 ID (App Group)", style="bold magenta", width=38)
     t2.add_column("同伙应用列表", style="white")
-    for g, members in sorted(shared_groups.items(), key=lambda x: len(x[1]), reverse=True)[:10]:
-        t2.add_row(g, "、".join(members[:6]))
+    for g, members in sorted(shared_groups.items(), key=lambda x: len(x[1]), reverse=True):
+        t2.add_row(g, "、".join(members))
     console.print(t2)
 
     # Exposed Sandbox Containers Table
     exposed_apps = [r for r in results if r["exposed_files_count"] > 0]
     if exposed_apps:
         t3 = Table(
-            title="💣 免 FaceID 通过 USB/Wi-Fi 直接裸奔可读的沙盒目录 (HouseArrest) [实锤]",
+            title=f"💣 免 FaceID 通过 USB/Wi-Fi 直接裸奔可读的沙盒目录 (HouseArrest) [实锤] (共 {len(exposed_apps)} 款)",
             box=box.ROUNDED,
             show_lines=True,
         )
         t3.add_column("应用名称", style="bold red", width=26)
         t3.add_column("暴露文件数", style="bold yellow", justify="right", width=10)
         t3.add_column("直接可读文件样本 (--redact 可脱敏)", style="white")
-        for r in exposed_apps[:10]:
+        for r in exposed_apps:
             t3.add_row(
                 f"{r['name']}\n[dim]{r['bundle_id']}[/dim]",
                 str(r["exposed_files_count"]),
-                ", ".join(r["exposed_files_sample"][:6]),
+                ", ".join(r["exposed_files_sample"][:10]),
             )
         console.print(t3)
 
