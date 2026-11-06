@@ -152,6 +152,14 @@ HIGH_RISK_ENTITLEMENTS = {
         "调用苹果安全隔区硬件芯片生成不可篡改的设备身份证，常用于防作弊与硬件级封号关联。",
         "Uses Apple's Secure Enclave to generate cryptographic hardware attestation keys bound to the physical device.",
     ),
+    "com.apple.developer.networking.wifi-info": (
+        "📍 [机制实锤] 读取所连路由器物理MAC地址 (wifi-info / BSSID)",
+        "📍 [CAPABILITY] Connected Wi-Fi Router BSSID MAC Reader (wifi-info)",
+        12,
+        "CAPABILITY",
+        "可直接读取你当前连接的路由器全球唯一硬件 MAC 地址 (BSSID)，只要连同一个家庭/公司 Wi-Fi 即可锁定物理住址。",
+        "Reads the hardware MAC address (BSSID) of your currently connected Wi-Fi router to pinpoint your home or office physical address.",
+    ),
 }
 
 PLAIN_EXPLANATIONS = {
@@ -211,6 +219,26 @@ PLAIN_EXPLANATIONS = {
         "开启了外部文件共享接口，信任过的电脑可通过 USB 或同一局域网 Wi-Fi 免密访问其 /Documents 目录。",
         "Enables external file sharing; any trusted computer on USB or local Wi-Fi can read/copy its /Documents folder without FaceID.",
     ),
+    "wifi-info": (
+        "直接读取你当前所连路由器的硬件 MAC 地址 (BSSID)，哪怕换账号或重装，只要连同一个家庭/办公 Wi-Fi 就能锁定你的真实住址（关闭「精确位置」可防御）。",
+        "Reads the hardware MAC address (BSSID) of your connected Wi-Fi router to lock onto your physical home/office address (disable 'Precise Location' to block).",
+    ),
+    "NSAllowsArbitraryLoads": (
+        "在配置中强行关闭了苹果默认的 HTTPS 强制加密保护（允许明文 HTTP 传输），在公共 Wi-Fi 或运营商基站下流量更容易被嗅探或劫持。",
+        "Explicitly disables Apple's mandatory HTTPS App Transport Security, allowing cleartext HTTP traffic vulnerable to Wi-Fi or carrier sniffing.",
+    ),
+    "NSAllowsLocalNetworking": (
+        "允许应用向本地回环端口 (127.0.0.1) 与家庭局域网设备发起明文 HTTP 通信或开启本地端口监听。",
+        "Allows cleartext HTTP traffic to local loopback (127.0.0.1) and LAN devices or local port listening.",
+    ),
+    "NSBonjourServices": (
+        "在局域网内主动广播或扫描 mDNS/Bonjour 服务探针（如探测局域网内其他微信/代理节点、智能家居家电或运营商网关）。",
+        "Broadcasts or probes mDNS/Bonjour services across your local Wi-Fi (e.g., discovering smart appliances, peer apps, or proxy nodes on the same LAN).",
+    ),
+    "ExternalAccessory": (
+        "声明了专门的外接硬件或车机通信协议（如宝马/福特车机、Meta Ray-Ban 智能眼镜、硬件冷钱包等），可用于识别车主身份或外设资产。",
+        "Declares hardware accessory or automotive protocols (BMW/Ford head-units, Meta Ray-Ban glasses, hardware wallets) that reveal vehicle/hardware ownership.",
+    ),
 }
 
 BG_MODE_LABELS = {
@@ -229,19 +257,114 @@ BG_MODE_LABELS = {
 }
 
 
+def parse_ips_directory(crashes_dir: Path) -> dict:
+    """Parse iOS kernel diagnostic .ips logs for disk-write monsters (>1.07GB/day), CPU kills, and embedded binary SDKs."""
+    dw_map = {}
+    cpu_map = {}
+    sdk_map = {}
+    if not crashes_dir or not crashes_dir.exists():
+        return {"disk_writes": [], "cpu_kills": [], "binary_sdks": []}
+
+    for p in sorted(crashes_dir.rglob("*.ips")):
+        lines = p.read_text(errors="ignore").splitlines()
+        if len(lines) < 2:
+            continue
+        try:
+            hdr = json.loads(lines[0])
+        except Exception:
+            continue
+        btype = str(hdr.get("bug_type", ""))
+        proc = hdr.get("app_name") or hdr.get("name") or p.stem.split(".")[0].split("-")[0]
+        bid = hdr.get("bundleID", "")
+        is_fp = bool(hdr.get("is_first_party", 0))
+        body_text = "\n".join(lines[1:])
+
+        if btype == "145" or "diskwrites" in p.name:
+            m_w = re.search(r"^Writes:\s+(.+)$", body_text, re.M)
+            detail = m_w.group(1).strip() if m_w else "Exceeded 1073.74 MB / 24h background disk write threshold"
+            gb_val = 1.0737
+            m_amt = re.search(r"([\d.]+)\s*(MB|GB)\s+of file backed memory dirtied", detail, re.I)
+            if m_amt:
+                val = float(m_amt.group(1))
+                gb_val = val if m_amt.group(2).upper() == "GB" else val / 1000.0
+            entry = dw_map.setdefault(
+                proc,
+                {
+                    "process": proc,
+                    "bundle_id": bid or ("apple.system.daemon" if is_fp else ""),
+                    "is_system": is_fp or not bid,
+                    "count": 0,
+                    "total_gb": 0.0,
+                    "max_single_gb": 0.0,
+                    "sample_detail": detail,
+                },
+            )
+            entry["count"] += 1
+            entry["total_gb"] = round(entry["total_gb"] + gb_val, 2)
+            if gb_val > entry["max_single_gb"]:
+                entry["max_single_gb"] = round(gb_val, 2)
+                entry["sample_detail"] = detail
+        elif btype == "202" or "cpu_resource" in p.name:
+            m_c = re.search(r"^CPU:\s+(.+)$", body_text, re.M)
+            detail = m_c.group(1).strip() if m_c else "Exceeded kernel CPU / wakeup resource limit"
+            entry = cpu_map.setdefault(
+                proc,
+                {
+                    "process": proc,
+                    "bundle_id": bid or ("apple.system.daemon" if is_fp else ""),
+                    "is_system": is_fp or not bid,
+                    "count": 0,
+                    "sample_detail": detail,
+                },
+            )
+            entry["count"] += 1
+        else:
+            try:
+                body = json.loads(body_text)
+                imgs = body.get("usedImages", [])
+                custom = []
+                for img in imgs:
+                    path = img.get("path", "")
+                    name = img.get("name", "")
+                    if "/private/var/containers/Bundle/Application" in path and name and name != proc:
+                        if name not in custom:
+                            custom.append(name)
+                if custom:
+                    prev = sdk_map.get(proc)
+                    if not prev or len(custom) > len(prev["frameworks"]):
+                        sdk_map[proc] = {
+                            "process": proc,
+                            "bundle_id": bid or body.get("coalitionName", ""),
+                            "count": len(custom),
+                            "frameworks": custom,
+                        }
+            except Exception:
+                pass
+
+    return {
+        "disk_writes": sorted(dw_map.values(), key=lambda x: (x["count"], x["total_gb"]), reverse=True),
+        "cpu_kills": sorted(cpu_map.values(), key=lambda x: x["count"], reverse=True),
+        "binary_sdks": sorted(sdk_map.values(), key=lambda x: x["count"], reverse=True),
+    }
+
+
 def build_html_report(report_data: dict, redact: bool = False, default_lang: str = "zh") -> str:
-    """Generate a standalone, bilingual (ZH/EN instant toggle) 6-tab HTML report."""
+    """Generate a standalone, bilingual (ZH/EN instant toggle) 7-tab HTML report."""
     dev = report_data["device"]
     summary = report_data["summary"]
     apps = report_data["apps"]
     shared_groups = report_data["shared_app_groups"]
     shared_keychains = report_data.get("shared_keychains", {})
+    scheme_collisions = report_data.get("scheme_collisions", {})
+    afc_Root_exposed = report_data.get("afc_root_exposure", [])
+    ips_diag = report_data.get("ips_diagnostics", {"disk_writes": [], "cpu_kills": [], "binary_sdks": []})
 
     layer_icloud = [a for a in apps if a.get("has_icloud_kvs")]
     layer_multipath = [a for a in apps if a.get("has_multipath") or a.get("has_net_auth")]
     layer_hotspot = [a for a in apps if a.get("has_hotspot_helper")]
     layer_voip = [a for a in apps if a.get("has_unrestricted_voip")]
     layer_ats = [a for a in apps if a.get("ats_exception_domains")]
+    layer_bonjour = [a for a in apps if a.get("bonjour_services") or a.get("external_protocols")]
     layer_sandbox = [a for a in apps if a.get("exposed_files_count", 0) > 0]
     all_probers = [
         a for a in sorted(apps, key=lambda x: len(x.get("queried_schemes", [])), reverse=True)
@@ -308,6 +431,30 @@ def build_html_report(report_data: dict, redact: bool = False, default_lang: str
                 f"</div></div>"
             )
 
+        if a.get("bonjour_services"):
+            bjs = ", ".join(html.escape(s) for s in a["bonjour_services"])
+            findings_badges.append(
+                f"<div>"
+                f'<span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>📡 局域网 mDNS/Bonjour 广播与嗅探探针 ({len(a["bonjour_services"])} 项):</b> <code>{bjs}</code></span>'
+                f'<span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>📡 LAN mDNS/Bonjour Broadcast &amp; Discovery Probes ({len(a["bonjour_services"])}):</b> <code>{bjs}</code></span>'
+                f'<div class="text-small text-muted" style="margin:1px 0 6px 18px;">'
+                f'<span class="i18n-zh">👉 <b>能干什么：</b>在所连 Wi-Fi 局域网内主动广播或嗅探特定服务（如代理软件、同类节点、智能家电或运营商网关），在公共或公司 Wi-Fi 下可能暴露本机安装的软件。</span>'
+                f'<span class="i18n-en">👉 <b>What it does: </b>Broadcasts or scans for specific mDNS services on your local Wi-Fi (e.g., proxy nodes, peer apps, smart appliances), potentially exposing installed software to LAN administrators.</span>'
+                f"</div></div>"
+            )
+
+        if a.get("external_protocols"):
+            eps = ", ".join(html.escape(s) for s in a["external_protocols"])
+            findings_badges.append(
+                f"<div>"
+                f'<span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>🚗 外接硬件与车机协议嗅探 ({len(a["external_protocols"])} 项):</b> <code>{eps}</code></span>'
+                f'<span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>🚗 External Hardware &amp; Automotive Protocol Probes ({len(a["external_protocols"])}):</b> <code>{eps}</code></span>'
+                f'<div class="text-small text-muted" style="margin:1px 0 6px 18px;">'
+                f'<span class="i18n-zh">👉 <b>能干什么：</b>通过声明宝马/福特车机、Meta Ray-Ban 智能眼镜或硬件钱包底层通信协议，直接与外设握手并识别你的座驾品牌或高价值硬件资产。</span>'
+                f'<span class="i18n-en">👉 <b>What it does: </b>Declares automotive head-unit (BMW/Ford), smart-glasses (Meta Ray-Ban), or hardware wallet protocols to interface with and fingerprint your physical hardware assets.</span>'
+                f"</div></div>"
+            )
+
         if a["bg_modes"]:
             bgs_zh = " · ".join(f"<code>{html.escape(BG_MODE_LABELS.get(b, (b, b))[0])}</code>" for b in a["bg_modes"])
             bgs_en = " · ".join(f"<code>{html.escape(BG_MODE_LABELS.get(b, (b, b))[1])}</code>" for b in a["bg_modes"])
@@ -345,6 +492,19 @@ def build_html_report(report_data: dict, redact: bool = False, default_lang: str
             f"</tr>"
         )
 
+    bonjour_rows_html = []
+    for a in sorted(layer_bonjour, key=lambda x: len(x.get("bonjour_services", [])) + len(x.get("external_protocols", [])), reverse=True):
+        bjs_code = " ".join(f"<code>{html.escape(s)}</code>" for s in a.get("bonjour_services", [])) or '<span class="text-muted">—</span>'
+        eps_code = " ".join(f"<code>{html.escape(s)}</code>" for s in a.get("external_protocols", [])) or '<span class="text-muted">—</span>'
+        bonjour_rows_html.append(
+            f"<tr>"
+            f'<td><b>{html.escape(a["name"])}</b><br><code class="mono">{html.escape(a["bundle_id"])}</code></td>'
+            f"<td>{bjs_code}</td>"
+            f"<td>{eps_code}</td>"
+            f'<td><span class="evi evi-seen"><span class="i18n-zh">【实锤】NSBonjour / ExternalAccessory</span><span class="i18n-en">[VERIFIED] NSBonjour / ExternalAccessory</span></span></td>'
+            f"</tr>"
+        )
+
     group_rows_html = []
     for gid, members in sorted(shared_groups.items(), key=lambda x: len(x[1]), reverse=True):
         m_str = "、".join(f"<b>{html.escape(m.split(' (')[0])}</b> (<code>{html.escape(m.split(' (')[1][:-1])}</code>)" for m in members)
@@ -369,6 +529,16 @@ def build_html_report(report_data: dict, redact: bool = False, default_lang: str
             f"</tr>"
         )
 
+    afc_rows_html = []
+    for item in afc_Root_exposed:
+        afc_rows_html.append(
+            f"<tr>"
+            f'<td class="mono"><code>{html.escape(item["path"])}</code></td>'
+            f'<td><span class="i18n-zh">{html.escape(item["desc_zh"])}</span><span class="i18n-en">{html.escape(item["desc_en"])}</span></td>'
+            f'<td><span class="evi evi-seen"><span class="i18n-zh">【实锤】AFC 根目录免密直读</span><span class="i18n-en">[VERIFIED] Unauthenticated AFC Root</span></span></td>'
+            f"</tr>"
+        )
+
     prober_rows_html = []
     for a in all_probers:
         sample_sc = ", ".join(f"<code>{html.escape(s)}</code>" for s in a["queried_schemes"])
@@ -378,6 +548,66 @@ def build_html_report(report_data: dict, redact: bool = False, default_lang: str
             f'<td class="text-end"><b>{len(a["queried_schemes"])}</b></td>'
             f"<td>{sample_sc}</td>"
             f'<td><span class="evi evi-seen"><span class="i18n-zh">【实锤】LSApplicationQueriesSchemes</span><span class="i18n-en">[VERIFIED] LSApplicationQueriesSchemes</span></span></td>'
+            f"</tr>"
+        )
+
+    collision_rows_html = []
+    for scheme, owners in sorted(scheme_collisions.items(), key=lambda x: len(x[1]), reverse=True):
+        owners_str = "、".join(f"<b>{html.escape(o.split(' (')[0])}</b> (<code>{html.escape(o.split(' (')[1][:-1])}</code>)" for o in owners)
+        collision_rows_html.append(
+            f"<tr>"
+            f'<td class="mono"><b style="color:var(--red)"><code>{html.escape(scheme)}://</code></b></td>'
+            f'<td class="text-end"><b>{len(owners)}</b></td>'
+            f"<td>{owners_str}</td>"
+            f'<td><span class="evi evi-seen"><span class="i18n-zh">【实锤】CFBundleURLSchemes 撞车抢注</span><span class="i18n-en">[VERIFIED] URL Scheme Hijack Collision</span></span></td>'
+            f"</tr>"
+        )
+
+    dw_rows_html = []
+    for d in ips_diag.get("disk_writes", []):
+        role_badge = (
+            '<span class="text-muted text-small">[iOS 系统后台画像守护进程 / System Daemon]</span>'
+            if d.get("is_system")
+            else f'<code class="mono">{html.escape(d.get("bundle_id", ""))}</code>'
+        )
+        dw_rows_html.append(
+            f"<tr>"
+            f'<td><b>{html.escape(d["process"])}</b><br>{role_badge}</td>'
+            f'<td class="text-end"><b style="color:var(--red)">{d["count"]}x</b></td>'
+            f'<td class="text-end"><b>{d["total_gb"]:.2f} GB</b> <span class="text-muted text-small">(单次峰值 {d.get("max_single_gb", 1.07):.2f} GB)</span></td>'
+            f'<td class="mono text-small">{html.escape(d["sample_detail"])}</td>'
+            f'<td><span class="evi evi-seen"><span class="i18n-zh">【实锤】.ips bug_type 145</span><span class="i18n-en">[VERIFIED] .ips bug_type 145</span></span></td>'
+            f"</tr>"
+        )
+
+    cpu_rows_html = []
+    for c in ips_diag.get("cpu_kills", []):
+        role_badge = (
+            '<span class="text-muted text-small">[iOS 系统守护进程 / System Daemon]</span>'
+            if c.get("is_system")
+            else f'<code class="mono">{html.escape(c.get("bundle_id", ""))}</code>'
+        )
+        cpu_rows_html.append(
+            f"<tr>"
+            f'<td><b>{html.escape(c["process"])}</b><br>{role_badge}</td>'
+            f'<td class="text-end"><b style="color:var(--orange)">{c["count"]}x</b></td>'
+            f'<td class="mono text-small">{html.escape(c["sample_detail"])}</td>'
+            f'<td><span class="evi evi-seen"><span class="i18n-zh">【实锤】.ips bug_type 202</span><span class="i18n-en">[VERIFIED] .ips bug_type 202</span></span></td>'
+            f"</tr>"
+        )
+
+    sdk_rows_html = []
+    for s in ips_diag.get("binary_sdks", []):
+        fws = " ".join(
+            f'<code style="{"color:var(--red);font-weight:600;" if any(k in fw.lower() for k in ("tmx", "behaviosec", "cronet", "matrix", "amnet")) else ""}">{html.escape(fw)}</code>'
+            for fw in s["frameworks"]
+        )
+        sdk_rows_html.append(
+            f"<tr>"
+            f'<td><b>{html.escape(s["process"])}</b><br><code class="mono">{html.escape(s.get("bundle_id", ""))}</code></td>'
+            f'<td class="text-end"><b>{s["count"]}</b></td>'
+            f"<td>{fws}</td>"
+            f'<td><span class="evi evi-seen"><span class="i18n-zh">【实锤】Mach-O usedImages 符号表</span><span class="i18n-en">[VERIFIED] Mach-O usedImages Symbols</span></span></td>'
             f"</tr>"
         )
 
@@ -533,20 +763,24 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
       <span class="i18n-en">2. 5-Layer Persistent Identity &amp; VPN Bypass</span>
     </button>
     <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-probers" id="tab-probers">
-      <span class="i18n-zh">3. URL Scheme 查户口嗅探 ({len(all_probers)})</span>
-      <span class="i18n-en">3. URL Scheme App Probing ({len(all_probers)})</span>
+      <span class="i18n-zh">3. URL Scheme 嗅探 ({len(all_probers)}) 与抢注劫持 ({len(scheme_collisions)})</span>
+      <span class="i18n-en">3. URL Scheme Probing ({len(all_probers)}) &amp; Hijacking ({len(scheme_collisions)})</span>
     </button>
     <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-ats" id="tab-ats">
-      <span class="i18n-zh">4. ATS 加密降级与隐秘端点 ({len(layer_ats)})</span>
-      <span class="i18n-en">4. ATS Exceptions &amp; Hidden Endpoints ({len(layer_ats)})</span>
+      <span class="i18n-zh">4. ATS 降级 ({len(layer_ats)}) 与局域网/车机探针 ({len(layer_bonjour)})</span>
+      <span class="i18n-en">4. ATS Exceptions ({len(layer_ats)}) &amp; LAN/Car Probes ({len(layer_bonjour)})</span>
     </button>
     <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-collusion" id="tab-collusion">
-      <span class="i18n-zh">5. 跨应用串通 ({len(shared_groups)}) 与沙盒裸奔 ({len(layer_sandbox)})</span>
-      <span class="i18n-en">5. Cross-App Collusion ({len(shared_groups)}) &amp; Sandbox Exposure ({len(layer_sandbox)})</span>
+      <span class="i18n-zh">5. 跨应用串通 ({len(shared_groups)}) 与沙盒/AFC裸奔 ({len(layer_sandbox)})</span>
+      <span class="i18n-en">5. Collusion ({len(shared_groups)}) &amp; Sandbox/AFC Exposure ({len(layer_sandbox)})</span>
+    </button>
+    <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-ips" id="tab-ips">
+      <span class="i18n-zh">6. 内核黑匣子 (.ips 闪存狂魔/CPU断头台/内嵌SDK)</span>
+      <span class="i18n-en">6. Kernel .ips Black-Box (1GB/Day Disk Writes &amp; SDKs)</span>
     </button>
     <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-method" id="tab-method">
-      <span class="i18n-zh">6. 证据分级与方法论局限</span>
-      <span class="i18n-en">6. Evidence Grading &amp; Methodology</span>
+      <span class="i18n-zh">7. 证据分级与方法论局限</span>
+      <span class="i18n-en">7. Evidence Grading &amp; Methodology</span>
     </button>
   </div>
 
@@ -734,10 +968,32 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
     </div></div>
   </div>
 
-  <!-- TAB 3: URL SCHEME PROBERS -->
+  <!-- TAB 3: URL SCHEME PROBERS & HIJACKING -->
   <div id="p-probers" role="tabpanel" aria-labelledby="tab-probers" hidden>
     <h3>
-      <span class="i18n-zh">🕵️ URL Scheme “查户口式”已安装应用嗅探榜（共 {len(all_probers)} 款）</span>
+      <span class="i18n-zh">⚔️ URL Scheme 恶意抢注与撞车劫持 (`CFBundleURLSchemes`)（共 {len(scheme_collisions)} 组冲突）</span>
+      <span class="i18n-en">⚔️ URL Scheme Squatting &amp; Hijack Collisions (`CFBundleURLSchemes`) ({len(scheme_collisions)} Collisions)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">iOS 的自定义 URL Scheme（如 <code>tc://</code>、<code>prefs://</code>）缺乏全局所有权校验：当多个 App 同时注册同一个 Scheme 时，后安装的 App 可能劫持原本发往目标钱包或系统导航的跳转请求（甚至截获 OAuth 回调与 TON Connect 签名请求）：</p>
+    <p class="text-muted text-small i18n-en">Custom URL schemes on iOS lack global ownership verification. When multiple apps register the exact same scheme (e.g. <code>tc://</code> TON Connect, <code>com.apple.maps.action://</code>, or <code>prefs://</code>), another installed app can intercept deep-link callbacks and wallet connection requests:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">冲突的 URL Scheme 协议头</span><span class="i18n-en">Colliding URL Scheme</span></th>
+            <th class="text-end"><span class="i18n-zh">抢注应用数</span><span class="i18n-en">Apps Count</span></th>
+            <th><span class="i18n-zh">同时注册该协议头的所有本机应用（存在跨应用拦截风险）</span><span class="i18n-en">Installed Apps Registering This Scheme (Deep-Link Interception Risk)</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {"".join(collision_rows_html)}
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:28px;">
+      <span class="i18n-zh">🕵️ URL Scheme “查户口式”已安装应用嗅探榜 (`LSApplicationQueriesSchemes`)（共 {len(all_probers)} 款）</span>
       <span class="i18n-en">🕵️ Installed-App URL Scheme Probing (`LSApplicationQueriesSchemes`) ({len(all_probers)} Apps)</span>
     </h3>
     <p class="text-muted text-small i18n-zh">iOS 9+ 规定应用必须在 <code>Info.plist</code> 的 <code>LSApplicationQueriesSchemes</code> 中静态声明要探测的 URL Scheme，才能调用 <code>canOpenURL:</code> 判断用户是否安装了目标软件（如小火箭 <code>shadowrocket</code>、海外银行、加密钱包、豪车 App）。此表为 100% 静态实锤证据：</p>
@@ -759,7 +1015,7 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
     </div>
   </div>
 
-  <!-- TAB 4: ATS EXCEPTIONS -->
+  <!-- TAB 4: ATS EXCEPTIONS & LAN / CAR PROBES -->
   <div id="p-ats" role="tabpanel" aria-labelledby="tab-ats" hidden>
     <h3>
       <span class="i18n-zh">🌐 ATS 加密降级与硬编码隐秘端点 (`NSExceptionDomains`)</span>
@@ -782,9 +1038,31 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
         </tbody>
       </table>
     </div>
+
+    <h3 style="margin-top:28px;">
+      <span class="i18n-zh">📡 局域网 mDNS/Bonjour 广播探针与车机/外设协议指纹（共 {len(layer_bonjour)} 款）</span>
+      <span class="i18n-en">📡 LAN mDNS/Bonjour Probes (`NSBonjourServices`) &amp; Automotive/Hardware Protocols ({len(layer_bonjour)} Apps)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">应用通过 <code>NSBonjourServices</code> 在当前 Wi-Fi 下扫描或广播特定局域网服务（例如 <code>_shadowrocket._tcp</code> 会在办公室/公共 Wi-Fi 下向网管暴露本机安装了小火箭；<code>_x5_gw._tcp</code> 探测家庭网关），或通过 <code>UISupportedExternalAccessoryProtocols</code> 识别车主座驾（宝马 <code>com.bmw.a4a1</code> / 福特 <code>com.ford.sync.prot0</code>）与智能穿戴（Meta 眼镜 <code>com.facebook.stella</code>）：</p>
+    <p class="text-muted text-small i18n-en">Apps declare <code>NSBonjourServices</code> to broadcast or scan for local Wi-Fi mDNS services (e.g., <code>_shadowrocket._tcp</code> advertising VPN installation on office Wi-Fi) and <code>UISupportedExternalAccessoryProtocols</code> to interface with BMW/Ford head-units or Meta Ray-Ban smart glasses:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">应用名称 / Bundle ID</span><span class="i18n-en">App Name / Bundle ID</span></th>
+            <th><span class="i18n-zh">局域网 Bonjour 服务探针 (`NSBonjourServices`)</span><span class="i18n-en">LAN Bonjour Services (`NSBonjourServices`)</span></th>
+            <th><span class="i18n-zh">外接硬件与车机协议 (`UISupportedExternalAccessoryProtocols`)</span><span class="i18n-en">Hardware / Car Protocols (`UISupportedExternalAccessoryProtocols`)</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {"".join(bonjour_rows_html)}
+        </tbody>
+      </table>
+    </div>
   </div>
 
-  <!-- TAB 5: COLLUSION & SANDBOX -->
+  <!-- TAB 5: COLLUSION, SANDBOX & AFC ROOT -->
   <div id="p-collusion" role="tabpanel" aria-labelledby="tab-collusion" hidden>
     <h3>
       <span class="i18n-zh">🔗 跨应用共享容器串通池 (`com.apple.security.application-groups`)</span>
@@ -827,9 +1105,100 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
         </tbody>
       </table>
     </div>
+
+    <h3 style="margin-top:28px;">
+      <span class="i18n-zh">💽 无需开发者模式即可通过 USB/Wi-Fi 免密拖库的系统级 AFC 索引数据库 (`AfcService`)</span>
+      <span class="i18n-en">💽 System-Level AFC Root Databases Exposed Without Developer Mode (`AfcService`)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">即使关闭了「开发者模式」，任何获得 USB 配对信任的设备均可通过苹果默认开启的 <code>com.apple.afc</code> 媒体同步通道直接读取以下系统核心 SQLite 数据库（包含全机照片的 AI 实况文本 OCR 识别结果、人脸聚类与完整历史经纬度轨迹）：</p>
+    <p class="text-muted text-small i18n-en">Even with Developer Mode turned off, any paired host can use Apple's default <code>com.apple.afc</code> service to directly download these system SQLite databases containing AI Live Text OCR indexes of your screenshots, face clusters, and historical GPS coordinates:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">暴露的 AFC 根目录路径</span><span class="i18n-en">Exposed AFC Root Path</span></th>
+            <th><span class="i18n-zh">包含的高危个人隐私数据内容</span><span class="i18n-en">Sensitive Forensic Contents</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {"".join(afc_rows_html)}
+        </tbody>
+      </table>
+    </div>
   </div>
 
-  <!-- TAB 6: METHODOLOGY & LIMITATIONS -->
+  <!-- TAB 6: KERNEL .IPS BLACK-BOX DIAGNOSTICS -->
+  <div id="p-ips" role="tabpanel" aria-labelledby="tab-ips" hidden>
+    <h3>
+      <span class="i18n-zh">💥 后台「闪存寿命杀手」：单日后台偷偷写入超 1.07 GB 触发内核警报 (`.ips bug_type 145`)</span>
+      <span class="i18n-en">💥 Background Flash-Write Monsters Exceeding 1.07 GB/Day (`.ips bug_type 145`)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">iOS 内核对后台进程的每日磁盘写入量设有 <code>1073.74 MB (1.07 GB) / 24h</code> 的硬性警戒线。一旦某个 App（或被其高频唤醒的系统画像守护进程）在后台疯狂写日志、写缓存或持久化埋点数据库超过 1.07 GB，内核就会生成一份 <code>diskwrites_resource.ips</code> 处决/告警档案。以下为从本机内核诊断黑匣子中实锤提取的「闪存狂魔」：</p>
+    <p class="text-muted text-small i18n-en">The iOS kernel enforces a strict <code>1073.74 MB (1.07 GB) / 24h</code> background disk-write limit. When an app (or a system daemon driven by it) writes more than 1.07 GB of telemetry/cache to NAND flash in a single day, the kernel logs a <code>diskwrites_resource.ips</code> violation:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">进程名称 / Bundle ID</span><span class="i18n-en">Process / Bundle ID</span></th>
+            <th class="text-end"><span class="i18n-zh">超标次数</span><span class="i18n-en">Violations</span></th>
+            <th class="text-end"><span class="i18n-zh">累计抓包写入量</span><span class="i18n-en">Total Recorded Writes</span></th>
+            <th><span class="i18n-zh">内核 Microstackshots 实测写入详情</span><span class="i18n-en">Kernel Microstackshot Write Telemetry</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {"".join(dw_rows_html)}
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:28px;">
+      <span class="i18n-zh">⚡ 后台「算力与发热刺客」：触发内核 CPU 断头台处决 (`.ips bug_type 202`)</span>
+      <span class="i18n-en">⚡ Background CPU &amp; Wakeup Guillotine Kills (`.ips bug_type 202`)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">当应用或系统分析守护进程在后台持续跑满 CPU（如 180 秒内平均占用超过 50% 或 15 秒内超过 95%）时，会被内核记录进 <code>cpu_resource.ips</code>：</p>
+    <p class="text-muted text-small i18n-en">Logged when a background process or analytics daemon sustains >50% CPU over 180s (or >95% over 15s):</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">进程名称 / Bundle ID</span><span class="i18n-en">Process / Bundle ID</span></th>
+            <th class="text-end"><span class="i18n-zh">处决/告警次数</span><span class="i18n-en">Kills / Alerts</span></th>
+            <th><span class="i18n-zh">内核实测 CPU 持续占用详情</span><span class="i18n-en">Kernel CPU Usage Telemetry</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {"".join(cpu_rows_html)}
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:28px;">
+      <span class="i18n-zh">🔬 免越狱剥离：从崩溃符号表 (`usedImages`) 提取内嵌商业风控与私有协议 SDK</span>
+      <span class="i18n-en">🔬 Non-Jailbroken Binary SDK Extraction via Crash Symbol Tables (`usedImages`)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">虽然未越狱 iOS 上的二进制受 FairPlay 加密，但每当应用或它的后台推送插件 (`NotificationServiceExtension`) 发生崩溃或资源越界时，iOS 内核会在 <code>.ips</code> 报告的 <code>usedImages</code> 中完整列出其内存加载的所有私有动态库（如渣打银行后台推送插件内嵌的 <code>TMXBehavioSec</code> 行为生物识别键盘/滑动监听库、微信的 <code>mmcronet</code>/<code>matrixreport</code>、淘宝的 <code>AMNet</code>、华为运动健康的 51 个鸿蒙移植动态库）：</p>
+    <p class="text-muted text-small i18n-en">While App Store binaries are FairPlay-encrypted, kernel <code>.ips</code> logs record every loaded Mach-O dynamic library inside <code>usedImages</code> — exposing behavioral biometrics SDKs (e.g., LexisNexis <code>TMXBehavioSec</code> inside Standard Chartered's background notification extension), custom QUIC stacks (<code>mmcronet</code>, <code>AMNet</code>), and 51 embedded dylibs in Huawei Health:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">宿主进程 / 插件名称</span><span class="i18n-en">Process / Extension Name</span></th>
+            <th class="text-end"><span class="i18n-zh">内嵌动态库数</span><span class="i18n-en">Embedded Dylibs</span></th>
+            <th><span class="i18n-zh">实锤加载的私有 Framework 与风控 SDK 列表（高危标红）</span><span class="i18n-en">Loaded Private Frameworks &amp; Risk SDKs (High-Risk Highlighted)</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {"".join(sdk_rows_html)}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 7: METHODOLOGY & LIMITATIONS -->
   <div id="p-method" role="tabpanel" aria-labelledby="tab-method" hidden>
     <div class="card"><div class="card-body">
       <h3>
@@ -921,10 +1290,77 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
 """
 
 
-async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool = True, lang: str = "zh"):
+async def check_afc_root_exposure(lockdown) -> list:
+    """Check unauthenticated AFC root database exposure (/MediaAnalysis, /PhotoData, /Downloads)."""
+    candidates = [
+        (
+            "/MediaAnalysis/MediaAnalysis.sqlite",
+            "全机照片与截图的 AI 视觉实况文本 (Live Text OCR) 识别索引数据库",
+            "Apple Visual Look Up / Live Text OCR index of all photos & screenshots",
+        ),
+        (
+            "/PhotoData/Photos.sqlite",
+            "系统相册主数据库（包含所有照片完整历史 GPS 经纬度轨迹与拍摄时间戳）",
+            "Master Photos SQLite database (historical GPS coordinates & timestamps)",
+        ),
+        (
+            "/PhotoData/FacesMetadata",
+            "全机人物面孔识别特征与人脸聚类元数据目录",
+            "On-device facial recognition clusters & metadata directory",
+        ),
+        (
+            "/Downloads/downloads.28.sqlitedb",
+            "系统媒体与资产下载历史记录数据库",
+            "System media & asset download history SQLite database",
+        ),
+    ]
+    exposed = []
+    try:
+        from pymobiledevice3.services.afc import AfcService
+
+        async with AfcService(lockdown=lockdown) as afc:
+            for path, desc_zh, desc_en in candidates:
+                try:
+                    await afc.stat(path)
+                    exposed.append({"path": path, "desc_zh": desc_zh, "desc_en": desc_en})
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return exposed
+
+
+async def run_scan(
+    output_dir: Path,
+    redact: bool = False,
+    check_sandbox: bool = True,
+    lang: str = "zh",
+    from_json: Path | None = None,
+    crashes_dir: Path | None = None,
+):
     is_en = lang == "en"
     console.print(BANNER_EN if is_en else BANNER_ZH)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    if from_json and from_json.exists():
+        report_data = json.loads(from_json.read_text(encoding="utf-8"))
+        if redact:
+            report_data["device"]["name"] = "iPhone (Redacted)"
+            for a in report_data.get("apps", []):
+                cnt = a.get("exposed_files_count", 0)
+                if cnt > 0:
+                    a["exposed_files_sample"] = [f"<redacted_{i}>" for i in range(cnt)]
+        if crashes_dir and crashes_dir.exists():
+            report_data["ips_diagnostics"] = parse_ips_directory(crashes_dir)
+        html_path = output_dir / "ios-noir-report.html"
+        html_path.write_text(build_html_report(report_data, redact=redact, default_lang=lang), encoding="utf-8")
+        console.print(
+            Panel(
+                f"✅ Offline report regenerated from [bold cyan]{from_json}[/bold cyan] -> [bold bright_green]{html_path}[/bold bright_green]",
+                border_style="green",
+            )
+        )
+        return
 
     lockdown = await create_using_usbmux()
     vals = lockdown.all_values
@@ -949,6 +1385,8 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
     keychain_map = defaultdict(list)
     url_scheme_owners = defaultdict(list)
     all_ats_domains = set()
+    trackers_domains = set()
+    functional_domains = set()
 
     for bid, info in apps.items():
         name = info.get("CFBundleDisplayName") or info.get("CFBundleName") or bid
@@ -958,6 +1396,8 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
         if isinstance(bg_modes, str):
             bg_modes = [bg_modes]
         queried_schemes = info.get("LSApplicationQueriesSchemes", []) or []
+        bonjour_services = info.get("NSBonjourServices", []) or []
+        external_protocols = info.get("UISupportedExternalAccessoryProtocols", []) or []
         file_sharing = bool(info.get("UIFileSharingEnabled", False))
         open_in_place = bool(info.get("LSSupportsOpeningDocumentsInPlace", False))
         plugins = info.get("PluginKitPlugins", {}) or {}
@@ -971,6 +1411,19 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
                 score += pts
                 findings_zh.append(label_zh)
                 findings_en.append(label_en)
+
+        ne_arr = ent.get("com.apple.developer.networking.networkextension", []) or []
+        if isinstance(ne_arr, list) and "content-filter-provider" in ne_arr and not ent.get("com.apple.developer.networking.content-filter"):
+            label_zh, label_en, pts, *_ = HIGH_RISK_ENTITLEMENTS["com.apple.developer.networking.content-filter"]
+            score += pts
+            findings_zh.append(label_zh)
+            findings_en.append(label_en)
+
+        if "nearby-interaction" in bg_modes and not ent.get("com.apple.developer.nearby-interaction"):
+            label_zh, label_en, pts, *_ = HIGH_RISK_ENTITLEMENTS["com.apple.developer.nearby-interaction"]
+            score += pts
+            findings_zh.append(label_zh)
+            findings_en.append(label_en)
 
         if "network-authentication" in bg_modes and not ent.get("com.apple.developer.CellularNetwork.network-authentication"):
             label_zh, label_en, pts, *_ = HIGH_RISK_ENTITLEMENTS["com.apple.developer.CellularNetwork.network-authentication"]
@@ -1029,11 +1482,55 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
 
         ats = info.get("NSAppTransportSecurity", {}) or {}
         exc_domains = []
+        cleartext_http = False
+        local_networking = False
         if isinstance(ats, dict):
+            cleartext_http = bool(ats.get("NSAllowsArbitraryLoads", False))
+            local_networking = bool(ats.get("NSAllowsLocalNetworking", False))
             doms = ats.get("NSExceptionDomains", {}) or {}
             if isinstance(doms, dict):
                 exc_domains = list(doms.keys())
                 all_ats_domains.update(exc_domains)
+                for d in exc_domains:
+                    if any(
+                        t in d
+                        for t in (
+                            "umeng",
+                            "miaozhen",
+                            "admaster",
+                            "gridsum",
+                            "tanx",
+                            "rtbasia",
+                            "udbac",
+                            "shuzilm",
+                            "jspatch",
+                            "mob.com",
+                            "tealium",
+                            "omtrdc",
+                            "doubleclick",
+                            "radiumone",
+                            "cmpassport",
+                            "wostore",
+                            "id6.me",
+                            "wo.cn",
+                        )
+                    ):
+                        trackers_domains.add(d)
+                    else:
+                        functional_domains.add(d)
+
+        if cleartext_http:
+            score += 8
+            findings_zh.append("⚠️ [实锤] 全局关闭HTTPS强制加密 (NSAllowsArbitraryLoads)")
+            findings_en.append("⚠️ [VERIFIED] Global Cleartext HTTP Allowed (NSAllowsArbitraryLoads)")
+        if local_networking:
+            score += 5
+            findings_zh.append("🔌 [实锤] 允许明文访问局域网与本地回环端口 (NSAllowsLocalNetworking)")
+            findings_en.append("🔌 [VERIFIED] Local Loopback/LAN Cleartext Allowed (NSAllowsLocalNetworking)")
+        if bonjour_services:
+            score += 6
+        if external_protocols:
+            score += 6
         if exc_domains:
             score += min(25, len(exc_domains) * 5)
 
@@ -1045,6 +1542,10 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
                 "score": score,
                 "bg_modes": bg_modes,
                 "queried_schemes": queried_schemes,
+                "bonjour_services": bonjour_services,
+                "external_protocols": external_protocols,
+                "cleartext_http": cleartext_http,
+                "local_networking": local_networking,
                 "findings": findings_zh,
                 "findings_en": findings_en,
                 "ats_exception_domains": exc_domains,
@@ -1152,6 +1653,22 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
             )
         console.print(t3)
 
+    afc_exposed = await check_afc_root_exposure(lockdown) if check_sandbox else []
+    ips_diag = {"disk_writes": [], "cpu_kills": [], "binary_sdks": []}
+    if crashes_dir and crashes_dir.exists():
+        ips_diag = parse_ips_directory(crashes_dir)
+    else:
+        try:
+            from pymobiledevice3.services.crash_reports import CrashReportsManager
+
+            tmp_crashes = output_dir / "crashes_pulled"
+            tmp_crashes.mkdir(parents=True, exist_ok=True)
+            async with CrashReportsManager(lockdown=lockdown) as cm:
+                await cm.pull(str(tmp_crashes))
+            ips_diag = parse_ips_directory(tmp_crashes)
+        except Exception:
+            pass
+
     report_data = {
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "device": {
@@ -1172,14 +1689,20 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
         "shared_app_groups": shared_groups,
         "shared_keychains": shared_kcs,
         "scheme_collisions": scheme_collisions,
+        "afc_root_exposure": afc_exposed,
+        "ips_diagnostics": ips_diag,
     }
 
     report_path = output_dir / "audit_report.json"
     domains_path = output_dir / "ats_exception_domains.txt"
+    trackers_path = output_dir / "domains-trackers.txt"
+    func_path = output_dir / "domains-functional.txt"
     html_path = output_dir / "ios-noir-report.html"
 
     report_path.write_text(json.dumps(report_data, ensure_ascii=False, indent=2))
     domains_path.write_text("\n".join(sorted(all_ats_domains)))
+    trackers_path.write_text("\n".join(sorted(trackers_domains)))
+    func_path.write_text("\n".join(sorted(functional_domains)))
     html_path.write_text(build_html_report(report_data, redact=redact, default_lang=lang), encoding="utf-8")
 
     console.print(
@@ -1188,14 +1711,16 @@ async def run_scan(output_dir: Path, redact: bool = False, check_sandbox: bool =
                 f"✅ Audit complete! Outputs saved to:\n"
                 f"  • Interactive Bilingual HTML Report (ZH/EN switchable): [bold bright_green]{html_path}[/bold bright_green]\n"
                 f"  • Structured JSON Report: [bold green]{report_path}[/bold green]\n"
-                f"  • Extracted ATS Exception Domains ({len(all_ats_domains)}): [bold yellow]{domains_path}[/bold yellow]"
+                f"  • Extracted ATS Exception Domains ({len(all_ats_domains)}): [bold yellow]{domains_path}[/bold yellow]\n"
+                f"  • Tracker / Risk SDK Domains ({len(trackers_domains)}): [bold red]{trackers_path}[/bold red]"
             )
             if is_en
             else (
                 f"✅ 扫描完成！产出已保存至:\n"
                 f"  • 中英双语交互式 HTML 报告 (右上角一键切中/英文): [bold bright_green]{html_path}[/bold bright_green]\n"
                 f"  • 结构化审计报告: [bold green]{report_path}[/bold green]\n"
-                f"  • 静态抽取的后门/豁免域名集 ({len(all_ats_domains)} 个): [bold yellow]{domains_path}[/bold yellow]"
+                f"  • 静态抽取的后门/豁免域名集 ({len(all_ats_domains)} 个): [bold yellow]{domains_path}[/bold yellow]\n"
+                f"  • 剥离的追踪/风控/取号高危域名 ({len(trackers_domains)} 个): [bold red]{trackers_path}[/bold red]"
             ),
             border_style="green",
         )
@@ -1268,6 +1793,12 @@ def main():
     scan_parser.add_argument(
         "--lang", choices=["zh", "en"], default="zh", help="Terminal & default HTML report language (zh or en)"
     )
+    scan_parser.add_argument(
+        "--from-json", help="Offline mode: regenerate HTML report from an existing audit_report.json"
+    )
+    scan_parser.add_argument(
+        "--crashes-dir", help="Optional path to directory containing .ips diagnostic logs for black-box analysis"
+    )
 
     radar_parser = subparsers.add_parser(
         "radar", help="Run live real-time TCC permission & sensor access radar"
@@ -1288,7 +1819,18 @@ def main():
             out_dir = Path(getattr(args, "output", "noir-out"))
             redact = getattr(args, "redact", False)
             check_sb = not getattr(args, "no_sandbox", False)
-            asyncio.run(run_scan(output_dir=out_dir, redact=redact, check_sandbox=check_sb, lang=lang))
+            from_j = Path(args.from_json) if getattr(args, "from_json", None) else None
+            crashes_d = Path(args.crashes_dir) if getattr(args, "crashes_dir", None) else None
+            asyncio.run(
+                run_scan(
+                    output_dir=out_dir,
+                    redact=redact,
+                    check_sandbox=check_sb,
+                    lang=lang,
+                    from_json=from_j,
+                    crashes_dir=crashes_d,
+                )
+            )
     except KeyboardInterrupt:
         console.print("\n[yellow]Aborted by user.[/yellow]")
         sys.exit(0)
