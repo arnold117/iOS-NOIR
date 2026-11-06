@@ -23,3 +23,7 @@ crash_samples/
 # Keep template/config files
 !package.json
 .DS_Store
+
+# Synthetic sample data (fictional com.example.* apps) is safe to commit
+!report/sample_apps.json
+!report/sample_ips/*.ips

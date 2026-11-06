@@ -1,0 +1,2 @@
+{"bug_type": "145", "app_name": "ChatBox", "bundleID": "com.example.chat"}
+Writes:          4294.97 MB of file backed memory dirtied over 50000 seconds (85.90 KB per second average), exceeding limit of 49.71 KB per second over 86400 seconds

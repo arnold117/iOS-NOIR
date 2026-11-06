@@ -88,14 +88,6 @@ HIGH_RISK_ENTITLEMENTS = {
         "哪怕你连着家里 Wi-Fi 或挂着 VPN，它也能同时强行开启 4G/5G 蜂窝流量通道直连服务器（常用于绕过代理或配合基站取号）。",
         "Can force concurrent cellular (pdp_ip0) connections even while on Wi-Fi or VPN — often used to hit carrier gateways for silent SIM/phone-number extraction.",
     ),
-    "com.apple.developer.CellularNetwork.network-authentication": (
-        "📱 [机制实锤] 蜂窝基站免密取号认证特权 (network-authentication)",
-        "📱 [CAPABILITY] Cellular Carrier Silent SIM/MDN Auth (network-authentication)",
-        22,
-        "CAPABILITY",
-        "直连移动/联通/电信基站网关，静默核验你的 SIM 卡身份或提取本机真实手机号。",
-        "Grants direct cellular carrier gateway authentication to silently verify SIM identity or extract the device phone number (MDN).",
-    ),
     "com.apple.developer.networking.multicast": (
         "🏠 [机制实锤] 局域网全屋设备多播探测 (multicast)",
         "🏠 [CAPABILITY] Local Network Multicast Device Discovery (multicast)",
@@ -162,6 +154,32 @@ HIGH_RISK_ENTITLEMENTS = {
     ),
 }
 
+# UIBackgroundModes 里的 network-authentication：注册 Wi-Fi 热点钩子 (NEHotspotHelper) 必须声明，跟 HotspotHelper 配套出现。
+NET_AUTH_BG_FINDING = (
+    "📶 [机制实锤] Wi-Fi 热点钩子配套后台模式 (network-authentication)",
+    "📶 [CAPABILITY] Wi-Fi Hotspot Helper Background Mode (network-authentication)",
+    22,
+)
+
+# 运营商一键登录 / 本机号码认证网关（第 4 层），后缀匹配
+CARRIER_AUTH_DOMAINS = ("cmpassport.com", "id6.me", "wostore.cn", "wosms.cn", "wo.cn", "189.cn")
+
+TRACKER_DOMAIN_HINTS = (
+    "umeng", "miaozhen", "admaster", "gridsum", "tanx", "rtbasia", "udbac", "shuzilm", "jspatch",
+    "mob.com", "tealium", "omtrdc", "doubleclick", "radiumone", "cmpassport", "wostore", "id6.me", "wo.cn",
+)
+
+
+def is_carrier_auth_domain(domain: str) -> bool:
+    d = str(domain).lower().rstrip(".")
+    return any(d == s or d.endswith("." + s) for s in CARRIER_AUTH_DOMAINS)
+
+
+def find_scheme_collisions(url_scheme_owners: dict) -> dict:
+    """Only count a collision when two or more *different* apps declare the same scheme."""
+    return {k: sorted(set(v)) for k, v in url_scheme_owners.items() if len(set(v)) >= 2}
+
+
 PLAIN_EXPLANATIONS = {
     "unrestricted-voip-regulatory": (
         "不用弹全屏来电界面，服务器可随时下发无声指令把划掉的死进程静默拉活（屏幕不亮不响）。",
@@ -180,8 +198,8 @@ PLAIN_EXPLANATIONS = {
         "Forces concurrent 4G/5G cellular (pdp_ip0) connections even while on Wi-Fi or VPN — bypassing proxies to hit carrier gateways.",
     ),
     "network-authentication": (
-        "直连移动/联通/电信基站网关，静默核验你的 SIM 卡身份或提取本机真实手机号。",
-        "Connects directly to telecom carrier gateways to silently authenticate SIM identity or extract your phone number (MDN).",
+        "注册系统 Wi-Fi 热点钩子（HotspotHelper）时必须声明的后台模式，跟 HotspotHelper 配套出现。",
+        "Background mode required to register as a Wi-Fi Hotspot Helper; it appears together with the HotspotHelper entitlement.",
     ),
     "multicast": (
         "向你家里或办公室的 Wi-Fi 发送局域网广播包，探测你家里有哪些智能电视、NAS、音响、打印机，精准描绘家庭资产画像。",
@@ -253,7 +271,7 @@ BG_MODE_LABELS = {
     "external-accessory": ("🔌external-accessory (后台持续通信外接硬件配件)", "🔌external-accessory (Background hardware accessory comm)"),
     "nearby-interaction": ("📏nearby-interaction (后台超宽带空间测距)", "📏nearby-interaction (Background UWB spatial ranging)"),
     "push-to-talk": ("🎙️push-to-talk (后台对讲机实时语音唤醒)", "🎙️push-to-talk (Background walkie-talkie audio wakeup)"),
-    "network-authentication": ("📱network-authentication (蜂窝基站免密取号/SIM认证后台)", "📱network-authentication (Background cellular SIM/MDN auth)"),
+    "network-authentication": ("📶network-authentication (Wi-Fi 热点钩子配套后台模式)", "📶network-authentication (Wi-Fi Hotspot Helper background mode)"),
 }
 
 
@@ -280,13 +298,26 @@ def parse_ips_directory(crashes_dir: Path) -> dict:
         body_text = "\n".join(lines[1:])
 
         if btype == "145" or "diskwrites" in p.name:
+            # The report fires when a process crosses its *own* 24 h write limit, and limits differ
+            # between processes, so rank by how far over its own limit it was, not by raw GB.
             m_w = re.search(r"^Writes:\s+(.+)$", body_text, re.M)
-            detail = m_w.group(1).strip() if m_w else "Exceeded 1073.74 MB / 24h background disk write threshold"
-            gb_val = 1.0737
-            m_amt = re.search(r"([\d.]+)\s*(MB|GB)\s+of file backed memory dirtied", detail, re.I)
-            if m_amt:
-                val = float(m_amt.group(1))
-                gb_val = val if m_amt.group(2).upper() == "GB" else val / 1000.0
+            detail = m_w.group(1).strip() if m_w else "diskwrites_resource report (Writes line not found)"
+            m = re.search(
+                r"([\d.]+)\s*(MB|GB) of file backed memory dirtied over (\d+) seconds "
+                r"\(([\d.]+) KB per second average\), exceeding limit of ([\d.]+) KB per second",
+                detail,
+            )
+            report = None
+            if m:
+                amount = float(m.group(1))
+                avg_kbps, limit_kbps = float(m.group(4)), float(m.group(5))
+                report = {
+                    "gb": round(amount if m.group(2) == "GB" else amount / 1000.0, 2),
+                    "hours": round(int(m.group(3)) / 3600, 1),
+                    "avg_kbps": avg_kbps,
+                    "limit_kbps": limit_kbps,
+                    "ratio": round(avg_kbps / limit_kbps, 1) if limit_kbps else 0.0,
+                }
             entry = dw_map.setdefault(
                 proc,
                 {
@@ -294,15 +325,13 @@ def parse_ips_directory(crashes_dir: Path) -> dict:
                     "bundle_id": bid or ("apple.system.daemon" if is_fp else ""),
                     "is_system": is_fp or not bid,
                     "count": 0,
-                    "total_gb": 0.0,
-                    "max_single_gb": 0.0,
+                    "worst": None,
                     "sample_detail": detail,
                 },
             )
             entry["count"] += 1
-            entry["total_gb"] = round(entry["total_gb"] + gb_val, 2)
-            if gb_val > entry["max_single_gb"]:
-                entry["max_single_gb"] = round(gb_val, 2)
+            if report and (entry["worst"] is None or report["ratio"] > entry["worst"]["ratio"]):
+                entry["worst"] = report
                 entry["sample_detail"] = detail
         elif btype == "202" or "cpu_resource" in p.name:
             m_c = re.search(r"^CPU:\s+(.+)$", body_text, re.M)
@@ -342,7 +371,9 @@ def parse_ips_directory(crashes_dir: Path) -> dict:
                 pass
 
     return {
-        "disk_writes": sorted(dw_map.values(), key=lambda x: (x["count"], x["total_gb"]), reverse=True),
+        "disk_writes": sorted(
+            dw_map.values(), key=lambda x: ((x["worst"] or {}).get("ratio", 0.0), x["count"]), reverse=True
+        ),
         "cpu_kills": sorted(cpu_map.values(), key=lambda x: x["count"], reverse=True),
         "binary_sdks": sorted(sdk_map.values(), key=lambda x: x["count"], reverse=True),
     }
@@ -360,7 +391,9 @@ def build_html_report(report_data: dict, redact: bool = False, default_lang: str
     ips_diag = report_data.get("ips_diagnostics", {"disk_writes": [], "cpu_kills": [], "binary_sdks": []})
 
     layer_icloud = [a for a in apps if a.get("has_icloud_kvs")]
-    layer_multipath = [a for a in apps if a.get("has_multipath") or a.get("has_net_auth")]
+    layer_carrier = [
+        a for a in apps if any(is_carrier_auth_domain(d) for d in a.get("ats_exception_domains", []))
+    ]
     layer_hotspot = [a for a in apps if a.get("has_hotspot_helper")]
     layer_voip = [a for a in apps if a.get("has_unrestricted_voip")]
     layer_ats = [a for a in apps if a.get("ats_exception_domains")]
@@ -570,11 +603,19 @@ def build_html_report(report_data: dict, redact: bool = False, default_lang: str
             if d.get("is_system")
             else f'<code class="mono">{html.escape(d.get("bundle_id", ""))}</code>'
         )
+        w = d.get("worst")
+        worst_html = (
+            f'<b style="color:var(--red)">{w["ratio"]:.1f}×</b><br><span class="text-small">'
+            f'<span class="i18n-zh">最严重一次 {w["hours"]:.1f} 小时写了 {w["gb"]:.2f} GB（平均 {w["avg_kbps"]:.0f} KB/s，是自己限额 {w["limit_kbps"]:.0f} KB/s 的 {w["ratio"]:.1f} 倍）</span>'
+            f'<span class="i18n-en">Worst report: {w["gb"]:.2f} GB in {w["hours"]:.1f} h ({w["avg_kbps"]:.0f} KB/s average, {w["ratio"]:.1f}× its own {w["limit_kbps"]:.0f} KB/s limit)</span></span>'
+            if w
+            else '<span class="text-muted">—</span>'
+        )
         dw_rows_html.append(
             f"<tr>"
             f'<td><b>{html.escape(d["process"])}</b><br>{role_badge}</td>'
             f'<td class="text-end"><b style="color:var(--red)">{d["count"]}x</b></td>'
-            f'<td class="text-end"><b>{d["total_gb"]:.2f} GB</b> <span class="text-muted text-small">(单次峰值 {d.get("max_single_gb", 1.07):.2f} GB)</span></td>'
+            f'<td class="text-end">{worst_html}</td>'
             f'<td class="mono text-small">{html.escape(d["sample_detail"])}</td>'
             f'<td><span class="evi evi-seen"><span class="i18n-zh">【实锤】.ips bug_type 145</span><span class="i18n-en">[VERIFIED] .ips bug_type 145</span></span></td>'
             f"</tr>"
@@ -737,9 +778,9 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
       <div class="text-small text-muted"><code>HotspotHelper</code></div>
     </div></div>
     <div class="card"><div class="card-body">
-      <div class="text-muted text-small"><span class="i18n-zh">穿 VPN 蜂窝并发/免密取号</span><span class="i18n-en">Cellular VPN Bypass / SIM Auth</span></div>
-      <div class="viz-stat-value" style="color:var(--purple)">{len(layer_multipath)}</div>
-      <div class="text-small text-muted"><code>multipath</code> / <code>network-auth</code></div>
+      <div class="text-muted text-small"><span class="i18n-zh">写死运营商取号网关</span><span class="i18n-en">Carrier Phone-Number Auth Gateways</span></div>
+      <div class="viz-stat-value" style="color:var(--purple)">{len(layer_carrier)}</div>
+      <div class="text-small text-muted"><code>cmpassport</code> / <code>wostore</code> / <code>id6.me</code></div>
     </div></div>
     <div class="card"><div class="card-body">
       <div class="text-muted text-small"><span class="i18n-zh">跨应用共享容器串通池</span><span class="i18n-en">Cross-App Shared Pools</span></div>
@@ -950,12 +991,12 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
 
     <div class="card"><div class="card-body">
       <h4>
-        <span class="i18n-zh">第 4 层：绕过 Wi-Fi 与普通 VPN 的「蜂窝基站直连通道」（全量检出 {len(layer_multipath)} 款） <span class="evi evi-cap">【机制实锤】</span></span>
-        <span class="i18n-en">Layer 4: Cellular Gateway VPN Bypass (`multipath` / `network-authentication`) ({len(layer_multipath)} Apps) <span class="evi evi-cap">[CAPABILITY]</span></span>
+        <span class="i18n-zh">第 4 层：写死运营商一键取号网关的「蜂窝取号通道」（全量检出 {len(layer_carrier)} 款） <span class="evi evi-seen">【实锤】</span></span>
+        <span class="i18n-en">Layer 4: Hardcoded Carrier Phone-Number Auth Gateways ({len(layer_carrier)} Apps) <span class="evi evi-seen">[VERIFIED]</span></span>
       </h4>
-      <p class="text-small i18n-zh">持有 <code>com.apple.developer.networking.multipath</code> 或 <code>network-authentication</code> 特权的应用，可在连接 Wi-Fi 或开启代理时，强行指定底层 Socket 绑定蜂窝数据网卡 (<code>pdp_ip0</code>) 直连三大运营商网关（<code>cmpassport.com</code> / <code>wostore.cn</code> / <code>id6.me</code>），不仅暴露真实 SIM 卡归属地与基站出口 IP，还可配合网关完成本机号码校验。</p>
-      <p class="text-small i18n-en">Apps holding <code>multipath</code> or <code>network-authentication</code> can bind sockets directly to the cellular interface (<code>pdp_ip0</code>) even while on Wi-Fi or VPN — exposing real carrier IP and hitting telecom gateways (<code>cmpassport.com</code>, <code>wostore.cn</code>, <code>id6.me</code>) for silent SIM/phone-number authentication.</p>
-      <p class="text-small"><b><span class="i18n-zh">本机检出全部应用：</span><span class="i18n-en">All Detected Apps: </span></b> {", ".join(f"<code>{html.escape(a['name'])}</code>" for a in layer_multipath)}</p>
+      <p class="text-small i18n-zh">这些应用在 ATS 配置里写死了三大运营商的一键登录 / 取号网关（<code>cmpassport.com</code> / <code>wostore.cn</code> / <code>id6.me</code> / <code>189.cn</code>），说明接入了「本机号码一键登录」。这类认证走蜂窝数据，由运营商按 SIM 卡直接识别出你的手机号。</p>
+      <p class="text-small i18n-en">These apps hardcode carrier one-tap-login / phone-number gateways (<code>cmpassport.com</code>, <code>wostore.cn</code>, <code>id6.me</code>, <code>189.cn</code>) in their ATS configuration, i.e. they integrate carrier phone-number authentication, which runs over cellular data and lets the carrier identify your number from the SIM.</p>
+      <p class="text-small"><b><span class="i18n-zh">本机检出全部应用：</span><span class="i18n-en">All Detected Apps: </span></b> {", ".join(f"<code>{html.escape(a['name'])}</code>" for a in layer_carrier)}</p>
     </div></div>
 
     <div class="card"><div class="card-body">
@@ -1131,19 +1172,19 @@ hr {{ border: 0; border-top: 1px solid var(--border); margin: 20px 0; }}
   <!-- TAB 6: KERNEL .IPS BLACK-BOX DIAGNOSTICS -->
   <div id="p-ips" role="tabpanel" aria-labelledby="tab-ips" hidden>
     <h3>
-      <span class="i18n-zh">💥 后台「闪存寿命杀手」：单日后台偷偷写入超 1.07 GB 触发内核警报 (`.ips bug_type 145`)</span>
-      <span class="i18n-en">💥 Background Flash-Write Monsters Exceeding 1.07 GB/Day (`.ips bug_type 145`)</span>
+      <span class="i18n-zh">💥「闪存寿命杀手」：24 小时内写盘超过系统给它的限额 (`.ips bug_type 145`)</span>
+      <span class="i18n-en">💥 Flash-Write Monsters: Over Their Own 24-Hour Disk-Write Limit (`.ips bug_type 145`)</span>
     </h3>
-    <p class="text-muted text-small i18n-zh">iOS 内核对后台进程的每日磁盘写入量设有 <code>1073.74 MB (1.07 GB) / 24h</code> 的硬性警戒线。一旦某个 App（或被其高频唤醒的系统画像守护进程）在后台疯狂写日志、写缓存或持久化埋点数据库超过 1.07 GB，内核就会生成一份 <code>diskwrites_resource.ips</code> 处决/告警档案。以下为从本机内核诊断黑匣子中实锤提取的「闪存狂魔」：</p>
-    <p class="text-muted text-small i18n-en">The iOS kernel enforces a strict <code>1073.74 MB (1.07 GB) / 24h</code> background disk-write limit. When an app (or a system daemon driven by it) writes more than 1.07 GB of telemetry/cache to NAND flash in a single day, the kernel logs a <code>diskwrites_resource.ips</code> violation:</p>
+    <p class="text-muted text-small i18n-zh">iOS 给每个进程设了 24 小时写盘限额，不同进程的限额不同（见每行）。一旦超过，系统就生成一份 <code>diskwrites_resource.ips</code>。下表按「超出自己限额多少倍」排序，写入量是报告里记录的真实数据：</p>
+    <p class="text-muted text-small i18n-en">iOS gives every process its own 24-hour disk-write limit, and limits differ between processes (see each row). Crossing it produces a <code>diskwrites_resource.ips</code> report. Ranked by how many times over its own limit each process went; the amounts are the real figures recorded in the reports:</p>
     <div class="table-responsive">
       <table class="table">
         <thead>
           <tr>
             <th><span class="i18n-zh">进程名称 / Bundle ID</span><span class="i18n-en">Process / Bundle ID</span></th>
             <th class="text-end"><span class="i18n-zh">超标次数</span><span class="i18n-en">Violations</span></th>
-            <th class="text-end"><span class="i18n-zh">累计抓包写入量</span><span class="i18n-en">Total Recorded Writes</span></th>
-            <th><span class="i18n-zh">内核 Microstackshots 实测写入详情</span><span class="i18n-en">Kernel Microstackshot Write Telemetry</span></th>
+            <th class="text-end"><span class="i18n-zh">超出自己限额的倍数</span><span class="i18n-en">Times Over Own Limit</span></th>
+            <th><span class="i18n-zh">报告原文</span><span class="i18n-en">Report Text</span></th>
             <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
           </tr>
         </thead>
@@ -1330,6 +1371,144 @@ async def check_afc_root_exposure(lockdown) -> list:
     return exposed
 
 
+def analyze_app(bid: str, info: dict, exposed_files: list, redact: bool = False) -> dict:
+    """Score one app from its InstallationProxy record (Info.plist + Entitlements). No device access."""
+    name = info.get("CFBundleDisplayName") or info.get("CFBundleName") or bid
+    version = info.get("CFBundleShortVersionString", "")
+    ent = info.get("Entitlements", {}) or {}
+    bg_modes = info.get("UIBackgroundModes", []) or []
+    if isinstance(bg_modes, str):
+        bg_modes = [bg_modes]
+    queried_schemes = info.get("LSApplicationQueriesSchemes", []) or []
+    bonjour_services = info.get("NSBonjourServices", []) or []
+    external_protocols = info.get("UISupportedExternalAccessoryProtocols", []) or []
+    file_sharing = bool(info.get("UIFileSharingEnabled", False))
+    open_in_place = bool(info.get("LSSupportsOpeningDocumentsInPlace", False))
+    plugins = info.get("PluginKitPlugins", {}) or {}
+
+    score = 0
+    findings_zh = []
+    findings_en = []
+
+    for k, (label_zh, label_en, pts, _tier, _exp_zh, _exp_en) in HIGH_RISK_ENTITLEMENTS.items():
+        if ent.get(k):
+            score += pts
+            findings_zh.append(label_zh)
+            findings_en.append(label_en)
+
+    ne_arr = ent.get("com.apple.developer.networking.networkextension", []) or []
+    if isinstance(ne_arr, list) and "content-filter-provider" in ne_arr and not ent.get("com.apple.developer.networking.content-filter"):
+        label_zh, label_en, pts, *_ = HIGH_RISK_ENTITLEMENTS["com.apple.developer.networking.content-filter"]
+        score += pts
+        findings_zh.append(label_zh)
+        findings_en.append(label_en)
+
+    if "nearby-interaction" in bg_modes and not ent.get("com.apple.developer.nearby-interaction"):
+        label_zh, label_en, pts, *_ = HIGH_RISK_ENTITLEMENTS["com.apple.developer.nearby-interaction"]
+        score += pts
+        findings_zh.append(label_zh)
+        findings_en.append(label_en)
+
+    if "network-authentication" in bg_modes:
+        label_zh, label_en, pts = NET_AUTH_BG_FINDING
+        score += pts
+        findings_zh.append(label_zh)
+        findings_en.append(label_en)
+
+    groups = ent.get("com.apple.security.application-groups", []) or []
+    if isinstance(groups, str):
+        groups = [groups]
+
+    kcs = ent.get("keychain-access-groups", []) or []
+    if isinstance(kcs, str):
+        kcs = [kcs]
+
+    url_schemes = []
+    for ut in info.get("CFBundleURLTypes", []) or []:
+        if isinstance(ut, dict):
+            for s in ut.get("CFBundleURLSchemes", []) or []:
+                url_schemes.append(str(s).lower())
+
+    score += len(bg_modes) * 4
+    if len(queried_schemes) >= 20:
+        score += min(30, len(queried_schemes) // 2)
+
+    if file_sharing or open_in_place:
+        score += 15
+        if exposed_files:
+            score += 10
+            findings_zh.append(
+                f"📂 [实锤] 免FaceID暴露USB/Wi-Fi沙盒目录 ({len(exposed_files)} 个裸露文件)"
+            )
+            findings_en.append(
+                f"📂 [VERIFIED] Unauthenticated USB/Wi-Fi Sandbox Exposure ({len(exposed_files)} exposed files)"
+            )
+        else:
+            findings_zh.append("📂 [实锤] 开启USB/Wi-Fi沙盒共享 (UIFileSharingEnabled)")
+            findings_en.append("📂 [VERIFIED] USB/Wi-Fi File Sharing Enabled (UIFileSharingEnabled)")
+
+    ats = info.get("NSAppTransportSecurity", {}) or {}
+    exc_domains = []
+    cleartext_http = False
+    local_networking = False
+    if isinstance(ats, dict):
+        cleartext_http = bool(ats.get("NSAllowsArbitraryLoads", False))
+        local_networking = bool(ats.get("NSAllowsLocalNetworking", False))
+        doms = ats.get("NSExceptionDomains", {}) or {}
+        if isinstance(doms, dict):
+            exc_domains = list(doms.keys())
+
+    if cleartext_http:
+        score += 8
+        findings_zh.append("⚠️ [实锤] 全局关闭HTTPS强制加密 (NSAllowsArbitraryLoads)")
+        findings_en.append("⚠️ [VERIFIED] Global Cleartext HTTP Allowed (NSAllowsArbitraryLoads)")
+    if local_networking:
+        score += 5
+        findings_zh.append("🔌 [实锤] 允许明文访问局域网与本地回环端口 (NSAllowsLocalNetworking)")
+        findings_en.append("🔌 [VERIFIED] Local Loopback/LAN Cleartext Allowed (NSAllowsLocalNetworking)")
+    if bonjour_services:
+        score += 6
+    if external_protocols:
+        score += 6
+    if exc_domains:
+        score += min(25, len(exc_domains) * 5)
+
+    return {
+        "bundle_id": bid,
+        "name": name,
+        "version": version,
+        "score": score,
+        "bg_modes": bg_modes,
+        "queried_schemes": queried_schemes,
+        "bonjour_services": bonjour_services,
+        "external_protocols": external_protocols,
+        "cleartext_http": cleartext_http,
+        "local_networking": local_networking,
+        "findings": findings_zh,
+        "findings_en": findings_en,
+        "ats_exception_domains": exc_domains,
+        "app_groups": groups,
+        "keychain_groups": kcs,
+        "extensions_count": len(plugins),
+        "file_sharing": file_sharing or open_in_place,
+        "exposed_files_count": len(exposed_files),
+        "exposed_files_sample": (
+            [f"<redacted_{i}>" for i in range(len(exposed_files))]
+            if redact
+            else exposed_files[:20]
+        ),
+        "has_icloud_kvs": bool(ent.get("com.apple.developer.ubiquity-kvstore-identifier")),
+        "has_multipath": bool(ent.get("com.apple.developer.networking.multipath")),
+        "has_hotspot_bg": "network-authentication" in bg_modes,
+        "url_schemes": url_schemes,
+        "has_hotspot_helper": bool(ent.get("com.apple.developer.networking.HotspotHelper")),
+        "has_unrestricted_voip": bool(
+            ent.get("com.apple.developer.pushkit.unrestricted-voip-regulatory")
+            or ent.get("com.apple.developer.pushkit.unrestricted-voip")
+        ),
+    }
+
+
 async def run_scan(
     output_dir: Path,
     redact: bool = False,
@@ -1337,6 +1516,7 @@ async def run_scan(
     lang: str = "zh",
     from_json: Path | None = None,
     crashes_dir: Path | None = None,
+    from_apps: Path | None = None,
 ):
     is_en = lang == "en"
     console.print(BANNER_EN if is_en else BANNER_ZH)
@@ -1362,12 +1542,18 @@ async def run_scan(
         )
         return
 
-    lockdown = await create_using_usbmux()
-    vals = lockdown.all_values
-    dev_name = "iPhone (Redacted)" if redact else vals.get("DeviceName", "iPhone")
-    ios_ver = vals.get("ProductVersion", "Unknown")
-    model = vals.get("ModelNumber", "")
-    region = vals.get("RegionInfo", "")
+    if from_apps:
+        # Offline: InstallationProxy-shaped JSON ({bundle_id: Info.plist dict}), e.g. the synthetic sample
+        lockdown = None
+        apps = json.loads(from_apps.read_text(encoding="utf-8"))
+        dev_name, ios_ver, model, region = "iPhone (synthetic sample data)", "—", "—", "—"
+    else:
+        lockdown = await create_using_usbmux()
+        vals = lockdown.all_values
+        dev_name = "iPhone (Redacted)" if redact else vals.get("DeviceName", "iPhone")
+        ios_ver = vals.get("ProductVersion", "Unknown")
+        model = vals.get("ModelNumber", "")
+        region = vals.get("RegionInfo", "")
 
     console.print(
         Panel(
@@ -1377,87 +1563,16 @@ async def run_scan(
         )
     )
 
-    async with InstallationProxyService(lockdown=lockdown) as iproxy:
-        apps = await iproxy.get_apps(application_type="User", calculate_sizes=False)
+    if lockdown:
+        async with InstallationProxyService(lockdown=lockdown) as iproxy:
+            apps = await iproxy.get_apps(application_type="User", calculate_sizes=False)
 
     results = []
-    app_groups_map = defaultdict(list)
-    keychain_map = defaultdict(list)
-    url_scheme_owners = defaultdict(list)
-    all_ats_domains = set()
-    trackers_domains = set()
-    functional_domains = set()
-
     for bid, info in apps.items():
-        name = info.get("CFBundleDisplayName") or info.get("CFBundleName") or bid
-        version = info.get("CFBundleShortVersionString", "")
-        ent = info.get("Entitlements", {}) or {}
-        bg_modes = info.get("UIBackgroundModes", []) or []
-        if isinstance(bg_modes, str):
-            bg_modes = [bg_modes]
-        queried_schemes = info.get("LSApplicationQueriesSchemes", []) or []
-        bonjour_services = info.get("NSBonjourServices", []) or []
-        external_protocols = info.get("UISupportedExternalAccessoryProtocols", []) or []
-        file_sharing = bool(info.get("UIFileSharingEnabled", False))
-        open_in_place = bool(info.get("LSSupportsOpeningDocumentsInPlace", False))
-        plugins = info.get("PluginKitPlugins", {}) or {}
-
-        score = 0
-        findings_zh = []
-        findings_en = []
-
-        for k, (label_zh, label_en, pts, _tier, _exp_zh, _exp_en) in HIGH_RISK_ENTITLEMENTS.items():
-            if ent.get(k):
-                score += pts
-                findings_zh.append(label_zh)
-                findings_en.append(label_en)
-
-        ne_arr = ent.get("com.apple.developer.networking.networkextension", []) or []
-        if isinstance(ne_arr, list) and "content-filter-provider" in ne_arr and not ent.get("com.apple.developer.networking.content-filter"):
-            label_zh, label_en, pts, *_ = HIGH_RISK_ENTITLEMENTS["com.apple.developer.networking.content-filter"]
-            score += pts
-            findings_zh.append(label_zh)
-            findings_en.append(label_en)
-
-        if "nearby-interaction" in bg_modes and not ent.get("com.apple.developer.nearby-interaction"):
-            label_zh, label_en, pts, *_ = HIGH_RISK_ENTITLEMENTS["com.apple.developer.nearby-interaction"]
-            score += pts
-            findings_zh.append(label_zh)
-            findings_en.append(label_en)
-
-        if "network-authentication" in bg_modes and not ent.get("com.apple.developer.CellularNetwork.network-authentication"):
-            label_zh, label_en, pts, *_ = HIGH_RISK_ENTITLEMENTS["com.apple.developer.CellularNetwork.network-authentication"]
-            score += pts
-            findings_zh.append(label_zh)
-            findings_en.append(label_en)
-
-        groups = ent.get("com.apple.security.application-groups", []) or []
-        if isinstance(groups, str):
-            groups = [groups]
-        for g in groups:
-            app_groups_map[g].append(f"{name} ({bid})")
-
-        kcs = ent.get("keychain-access-groups", []) or []
-        if isinstance(kcs, str):
-            kcs = [kcs]
-        for kc in kcs:
-            keychain_map[kc].append(f"{name} ({bid})")
-
-        for ut in info.get("CFBundleURLTypes", []) or []:
-            if isinstance(ut, dict):
-                for s in ut.get("CFBundleURLSchemes", []) or []:
-                    url_scheme_owners[str(s).lower()].append(f"{name} ({bid})")
-
-        score += len(bg_modes) * 4
-        if len(queried_schemes) >= 20:
-            score += min(30, len(queried_schemes) // 2)
-
-        exposed_files = []
-        if check_sandbox and (file_sharing or open_in_place):
+        exposed_files = info.get("_sample_exposed_files", [])  # synthetic sample data only
+        if lockdown and check_sandbox and (info.get("UIFileSharingEnabled") or info.get("LSSupportsOpeningDocumentsInPlace")):
             try:
-                ha = await HouseArrestService.create(
-                    lockdown=lockdown, bundle_id=bid, documents_only=True
-                )
+                ha = await HouseArrestService.create(lockdown=lockdown, bundle_id=bid, documents_only=True)
                 items = await ha.listdir("/Documents")
                 exposed_files = [
                     x for x in items if x not in (".", "..", ".com.apple.mobile_container_manager.metadata.plist")
@@ -1465,113 +1580,25 @@ async def run_scan(
                 await ha.close()
             except Exception:
                 pass
+        results.append(analyze_app(bid, info, exposed_files, redact))
 
-        if file_sharing or open_in_place:
-            score += 15
-            if exposed_files:
-                score += 10
-                findings_zh.append(
-                    f"📂 [实锤] 免FaceID暴露USB/Wi-Fi沙盒目录 ({len(exposed_files)} 个裸露文件)"
-                )
-                findings_en.append(
-                    f"📂 [VERIFIED] Unauthenticated USB/Wi-Fi Sandbox Exposure ({len(exposed_files)} exposed files)"
-                )
-            else:
-                findings_zh.append("📂 [实锤] 开启USB/Wi-Fi沙盒共享 (UIFileSharingEnabled)")
-                findings_en.append("📂 [VERIFIED] USB/Wi-Fi File Sharing Enabled (UIFileSharingEnabled)")
-
-        ats = info.get("NSAppTransportSecurity", {}) or {}
-        exc_domains = []
-        cleartext_http = False
-        local_networking = False
-        if isinstance(ats, dict):
-            cleartext_http = bool(ats.get("NSAllowsArbitraryLoads", False))
-            local_networking = bool(ats.get("NSAllowsLocalNetworking", False))
-            doms = ats.get("NSExceptionDomains", {}) or {}
-            if isinstance(doms, dict):
-                exc_domains = list(doms.keys())
-                all_ats_domains.update(exc_domains)
-                for d in exc_domains:
-                    if any(
-                        t in d
-                        for t in (
-                            "umeng",
-                            "miaozhen",
-                            "admaster",
-                            "gridsum",
-                            "tanx",
-                            "rtbasia",
-                            "udbac",
-                            "shuzilm",
-                            "jspatch",
-                            "mob.com",
-                            "tealium",
-                            "omtrdc",
-                            "doubleclick",
-                            "radiumone",
-                            "cmpassport",
-                            "wostore",
-                            "id6.me",
-                            "wo.cn",
-                        )
-                    ):
-                        trackers_domains.add(d)
-                    else:
-                        functional_domains.add(d)
-
-        if cleartext_http:
-            score += 8
-            findings_zh.append("⚠️ [实锤] 全局关闭HTTPS强制加密 (NSAllowsArbitraryLoads)")
-            findings_en.append("⚠️ [VERIFIED] Global Cleartext HTTP Allowed (NSAllowsArbitraryLoads)")
-        if local_networking:
-            score += 5
-            findings_zh.append("🔌 [实锤] 允许明文访问局域网与本地回环端口 (NSAllowsLocalNetworking)")
-            findings_en.append("🔌 [VERIFIED] Local Loopback/LAN Cleartext Allowed (NSAllowsLocalNetworking)")
-        if bonjour_services:
-            score += 6
-        if external_protocols:
-            score += 6
-        if exc_domains:
-            score += min(25, len(exc_domains) * 5)
-
-        results.append(
-            {
-                "bundle_id": bid,
-                "name": name,
-                "version": version,
-                "score": score,
-                "bg_modes": bg_modes,
-                "queried_schemes": queried_schemes,
-                "bonjour_services": bonjour_services,
-                "external_protocols": external_protocols,
-                "cleartext_http": cleartext_http,
-                "local_networking": local_networking,
-                "findings": findings_zh,
-                "findings_en": findings_en,
-                "ats_exception_domains": exc_domains,
-                "app_groups": groups,
-                "keychain_groups": kcs,
-                "extensions_count": len(plugins),
-                "file_sharing": file_sharing or open_in_place,
-                "exposed_files_count": len(exposed_files),
-                "exposed_files_sample": (
-                    [f"<redacted_{i}>" for i in range(len(exposed_files))]
-                    if redact
-                    else exposed_files[:20]
-                ),
-                "has_icloud_kvs": bool(ent.get("com.apple.developer.ubiquity-kvstore-identifier")),
-                "has_multipath": bool(ent.get("com.apple.developer.networking.multipath")),
-                "has_net_auth": bool(
-                    ent.get("com.apple.developer.CellularNetwork.network-authentication")
-                    or ("network-authentication" in bg_modes)
-                ),
-                "has_hotspot_helper": bool(ent.get("com.apple.developer.networking.HotspotHelper")),
-                "has_unrestricted_voip": bool(
-                    ent.get("com.apple.developer.pushkit.unrestricted-voip-regulatory")
-                    or ent.get("com.apple.developer.pushkit.unrestricted-voip")
-                ),
-            }
-        )
+    app_groups_map = defaultdict(list)
+    keychain_map = defaultdict(list)
+    url_scheme_owners = defaultdict(list)
+    all_ats_domains = set()
+    trackers_domains = set()
+    functional_domains = set()
+    for r in results:
+        owner = f"{r['name']} ({r['bundle_id']})"
+        for g in r["app_groups"]:
+            app_groups_map[g].append(owner)
+        for kc in r["keychain_groups"]:
+            keychain_map[kc].append(owner)
+        for sc in r["url_schemes"]:
+            url_scheme_owners[sc].append(owner)
+        for d in r["ats_exception_domains"]:
+            all_ats_domains.add(d)
+            (trackers_domains if any(t in d for t in TRACKER_DOMAIN_HINTS) else functional_domains).add(d)
 
     results.sort(key=lambda x: x["score"], reverse=True)
 
@@ -1615,7 +1642,7 @@ async def run_scan(
 
     shared_groups = {k: v for k, v in app_groups_map.items() if len(v) >= 2}
     shared_kcs = {k: v for k, v in keychain_map.items() if len(v) >= 2}
-    scheme_collisions = {k: v for k, v in url_scheme_owners.items() if len(v) >= 2}
+    scheme_collisions = find_scheme_collisions(url_scheme_owners)
 
     t2 = Table(
         title=(
@@ -1653,11 +1680,11 @@ async def run_scan(
             )
         console.print(t3)
 
-    afc_exposed = await check_afc_root_exposure(lockdown) if check_sandbox else []
+    afc_exposed = await check_afc_root_exposure(lockdown) if (lockdown and check_sandbox) else []
     ips_diag = {"disk_writes": [], "cpu_kills": [], "binary_sdks": []}
     if crashes_dir and crashes_dir.exists():
         ips_diag = parse_ips_directory(crashes_dir)
-    else:
+    elif lockdown:
         try:
             from pymobiledevice3.services.crash_reports import CrashReportsManager
 
@@ -1799,6 +1826,9 @@ def main():
     scan_parser.add_argument(
         "--crashes-dir", help="Optional path to directory containing .ips diagnostic logs for black-box analysis"
     )
+    scan_parser.add_argument(
+        "--from-apps", help="Offline mode: analyse an InstallationProxy-style apps JSON instead of a connected device"
+    )
 
     radar_parser = subparsers.add_parser(
         "radar", help="Run live real-time TCC permission & sensor access radar"
@@ -1821,6 +1851,7 @@ def main():
             check_sb = not getattr(args, "no_sandbox", False)
             from_j = Path(args.from_json) if getattr(args, "from_json", None) else None
             crashes_d = Path(args.crashes_dir) if getattr(args, "crashes_dir", None) else None
+            from_a = Path(args.from_apps) if getattr(args, "from_apps", None) else None
             asyncio.run(
                 run_scan(
                     output_dir=out_dir,
@@ -1829,6 +1860,7 @@ def main():
                     lang=lang,
                     from_json=from_j,
                     crashes_dir=crashes_d,
+                    from_apps=from_a,
                 )
             )
     except KeyboardInterrupt:

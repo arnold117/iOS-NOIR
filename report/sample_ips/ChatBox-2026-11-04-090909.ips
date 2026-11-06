@@ -1,0 +1,2 @@
+{"bug_type": "309", "app_name": "ChatBox", "bundleID": "com.example.chat"}
+{"usedImages": [{"name": "ChatBox", "path": "/private/var/containers/Bundle/Application/00000000-EXAMPLE/ChatBox.app/ChatBox"}, {"name": "ExampleAnalytics", "path": "/private/var/containers/Bundle/Application/00000000-EXAMPLE/ChatBox.app/Frameworks/ExampleAnalytics.framework/ExampleAnalytics"}, {"name": "ExampleNetStack", "path": "/private/var/containers/Bundle/Application/00000000-EXAMPLE/ChatBox.app/Frameworks/ExampleNetStack.framework/ExampleNetStack"}]}

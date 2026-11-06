@@ -13,6 +13,8 @@
 **Turn "What is my iPhone silently leaking?" into a reproducible, evidence-graded forensic report — without jailbreaking.**  
 **把「这台未越狱的 iPhone 到底在暗中泄露什么」变成一份带三级证据标注的可复现底层取证报告。**
 
+📊 **Sample Standalone Interactive Report (7-Tab HTML, synthetic data):** [`report/ios-noir-sample-report.html`](report/ios-noir-sample-report.html) *(fictional `com.example.*` apps; download & open in any browser)*
+
 > 💡 **Acknowledgements / 致敬**  
 > - **Architecture & CLI Flow:** Inspired by [**Verlintas/NOIR**](https://github.com/Verlintas/NOIR) (the local-first Android privacy auditor over `adb`).  
 > - **Evidence Tiering, 5-Layer Persistent Identity Chain & Standalone HTML Report:** Inspired by [**RootSir/claude-ios-privacy-analysis**](https://github.com/RootSir/claude-ios-privacy-analysis).
@@ -24,7 +26,7 @@
 Following the forensic rigor of [`RootSir/claude-ios-privacy-analysis`](https://github.com/RootSir/claude-ios-privacy-analysis), **iOS-NOIR** explicitly distinguishes between static configuration evidence, kernel capability entitlements, and behavioral inference:
 
 - 🟢 **`【实锤 / VERIFIED】`**: Directly extracted from Apple-signed `Entitlements`, `Info.plist` static whitelists (`LSApplicationQueriesSchemes`, `NSExceptionDomains`), `ubiquity-kvstore-identifier`, or live `HouseArrest` sandbox filesystem enumeration.
-- 🟠 **`【机制实锤 / CAPABILITY】`**: The app holds an Apple-signed privileged entitlement (`unrestricted-voip-regulatory`, `HotspotHelper`, `multipath`, `network-authentication`) granting kernel-level bypass capabilities; actual trigger frequency depends on server push/runtime state.
+- 🟠 **`【机制实锤 / CAPABILITY】`**: The app holds an Apple-signed privileged entitlement (`unrestricted-voip-regulatory`, `HotspotHelper`, `multipath`) granting kernel-level bypass capabilities; actual trigger frequency depends on server push/runtime state.
 - 🟣 **`【推断 / INFERRED】`**: Cross-app identity correlation inferred from shared `App Groups` (`group.*`), shared `Keychain Access Groups`, and embedded risk/attribution SDK endpoints (`shuzilm.cn`, `id6.me`, `miaozhen.com`).
 
 ---
@@ -37,15 +39,21 @@ Why does turning off `Allow Apps to Request to Track (IDFA)`, connecting to a VP
 1. **Layer 1 — Uninstall- & New-iPhone-Proof iCloud KVS (`ubiquity-kvstore-identifier`)** `【实锤】`: Writes tracking tokens into your private iCloud key-value store that automatically restore even after app uninstallation or migrating to a brand-new iPhone.
 2. **Layer 2 — Uninstall-Proof Shared Keychain (`keychain-access-groups`)** `【实锤】`: iOS Keychain items persist across app uninstalls and are shared across apps signed by the same developer Team ID.
 3. **Layer 3 — Cross-App Collusion Pools (`com.apple.security.application-groups`)** `【实锤】`: Shared local storage containers (`group.*`) survive uninstallation as long as *any single sister app* from the same corporate family remains installed.
-4. **Layer 4 — Cellular Gateway VPN Bypass (`multipath` & `network-authentication`)** `【机制实锤】`: Allows apps to force cellular interface (`pdp_ip0`) connections to telecom gateways (`cmpassport.com`, `wostore.cn`, `id6.me`) for silent SIM/phone-number (`MDN`) extraction even while on Wi-Fi or VPN.
-5. **Layer 5 — GPS-Free Physical BSSID Hooks (`HotspotHelper` & `multicast`)** `【机制实锤】`: System-level hooks that wake food-delivery/payment apps whenever iOS scans Wi-Fi networks, feeding them nearby router MAC addresses (`BSSID`).
+4. **Layer 4 — Hardcoded Carrier Phone-Number Gateways (`cmpassport.com`, `wostore.cn`, `id6.me`, `189.cn`)** `【实锤】`: Apps that hardcode carrier one-tap-login gateways in their ATS configuration. This kind of authentication runs over cellular data, even while you're on Wi-Fi, so the carrier can identify your phone number (`MDN`) straight from the SIM.
+5. **Layer 5 — GPS-Free Physical BSSID Hooks (`HotspotHelper` + its `network-authentication` background mode, & `multicast`)** `【机制实锤】`: System-level hooks that wake food-delivery/payment apps whenever iOS scans Wi-Fi networks, feeding them nearby router MAC addresses (`BSSID`).
 
 ### 🚨 Additional Hidden Backdoors Exposed
 - **Regulatory Unrestricted Silent VoIP Wakeups (`unrestricted-voip-regulatory`)** `【机制实锤】`: Detects super-apps (e.g., WeChat, QQ, DingTalk) holding Apple's undocumented regulatory exemption to wake dead background processes via silent PushKit payloads without displaying a CallKit UI.
-- **App-List Probing (`LSApplicationQueriesSchemes`) & URL Scheme Hijacking (`CFBundleURLSchemes`)** `【实锤】`: Uncovers apps hardcoding up to **280+ URL schemes** to probe whether you have VPN clients (`shadowrocket`), crypto wallets, or luxury car apps installed — plus detects **URL Scheme collisions** (e.g., 4 apps simultaneously hijacking `tc://` TON Connect or 17 apps hijacking `prefs://`).
+- **App-List Probing (`LSApplicationQueriesSchemes`) & URL Scheme Hijacking (`CFBundleURLSchemes`)** `【实锤】`: Uncovers apps hardcoding up to **280+ URL schemes** to probe whether you have VPN clients (`shadowrocket`), crypto wallets, or luxury car apps installed — plus detects **URL Scheme collisions** (e.g., 4 apps simultaneously hijacking `tc://` TON Connect or 18 apps hijacking `prefs://`).
 - **USB / Wi-Fi Sandbox (`HouseArrest`) & System AFC Root Database Exposure (`AfcService`)** `【实锤】`: Audits apps exposing their `/Documents` container over USB/Wi-Fi without FaceID (catching exposed `.kdbx` password vaults and bank statements) AND checks unauthenticated `AFC` root exposure of `/MediaAnalysis/MediaAnalysis.sqlite` (Apple Live Text OCR index of all photos/screenshots) and `/PhotoData/Photos.sqlite`.
 - **ATS Exception Endpoints (`NSExceptionDomains`) & LAN/Car Protocol Probes (`NSBonjourServices`)** `【实锤】`: Extracts domains where developers explicitly downgrade HTTPS (uncovering `jspatch.com` hot-patching backdoors and `shuzilm.cn` DNA fingerprinting), plus local mDNS probes (`_shadowrocket._tcp`, `_x5_gw._tcp`) and automotive/hardware accessory protocols (`com.bmw.a4a1`, `com.ford.sync.prot0`, `com.facebook.stella`).
-- **Kernel `.ips` Diagnostic Black-Box Forensics (`bug_type 145/202` & `usedImages`)** `【实锤】`: Parses iOS kernel `.ips` logs to expose **Background Flash-Write Monsters** exceeding `1.07 GB/day` (e.g., WeChat writing 17.18 GB in the background), CPU guillotine kills, and embedded binary SDKs (`TMXBehavioSec` behavioral biometrics inside background notification extensions, custom QUIC stacks) without jailbreaking.
+- **Kernel `.ips` Diagnostic Black-Box Forensics (`bug_type 145/202` & `usedImages`)** `【实锤】`: Parses iOS kernel `.ips` logs to expose **Flash-Write Monsters** that blew through their own 24-hour disk-write limit, ranked by how many times over that limit they went (on the author's iPhone: Alipay 10.0×, Bilibili 5.8×, Xiaohongshu 4.3×, QQ 3.5×, Taobao 2.6×, WeChat 1.3×; WeChat wrote the most, 17.18 GB in 18.7 h, but it also has the highest limit), CPU guillotine kills, and embedded binary SDKs (`TMXBehavioSec` behavioral biometrics inside background notification extensions, custom QUIC stacks) without jailbreaking.
+
+### 📝 Updates (2026-11-06)
+- `network-authentication` is the background mode an app must declare to register as a Wi-Fi Hotspot Helper (all 4 apps on the author's iPhone that declare it also hold `HotspotHelper`), so it now sits with Layer 5's Wi-Fi hooks. Layer 4 is now based on hardcoded carrier phone-number gateways.
+- URL scheme collisions now count only *different* apps claiming the same scheme; an app declaring its own scheme twice used to be counted as a collision.
+- `.ips` disk-write reports are now ranked by how far each process went over its own limit (limits differ between processes). The written amounts are the real recorded figures, unchanged.
+- The sample report now uses synthetic data.
 
 ---
 

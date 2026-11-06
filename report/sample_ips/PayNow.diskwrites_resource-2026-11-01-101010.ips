@@ -1,0 +1,2 @@
+{"bug_type": "145", "app_name": "PayNow", "bundleID": "com.example.pay"}
+Writes:          1073.74 MB of file backed memory dirtied over 7200 seconds (149.13 KB per second average), exceeding limit of 12.43 KB per second over 86400 seconds

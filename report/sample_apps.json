@@ -1,0 +1,389 @@
+{
+ "com.example.chat": {
+  "CFBundleDisplayName": "ChatBox",
+  "CFBundleShortVersionString": "8.0.1",
+  "Entitlements": {
+   "com.apple.developer.pushkit.unrestricted-voip-regulatory": true,
+   "com.apple.developer.networking.HotspotHelper": true,
+   "com.apple.developer.networking.networkextension": [
+    "packet-tunnel-provider",
+    "content-filter-provider"
+   ],
+   "keychain-access-groups": [
+    "TEAM1EXAMPLE.com.example.shared"
+   ],
+   "com.apple.security.application-groups": [
+    "group.com.example.family"
+   ]
+  },
+  "UIBackgroundModes": [
+   "voip",
+   "remote-notification",
+   "audio",
+   "network-authentication"
+  ],
+  "LSApplicationQueriesSchemes": [
+   "exampleapp0",
+   "exampleapp1",
+   "exampleapp2",
+   "exampleapp3",
+   "exampleapp4",
+   "exampleapp5",
+   "exampleapp6",
+   "exampleapp7",
+   "exampleapp8",
+   "exampleapp9",
+   "exampleapp10",
+   "exampleapp11",
+   "exampleapp12",
+   "exampleapp13",
+   "exampleapp14",
+   "exampleapp15",
+   "exampleapp16",
+   "exampleapp17",
+   "exampleapp18",
+   "exampleapp19",
+   "exampleapp20",
+   "exampleapp21",
+   "exampleapp22",
+   "exampleapp23",
+   "exampleapp24",
+   "exampleapp25",
+   "exampleapp26",
+   "exampleapp27",
+   "exampleapp28",
+   "exampleapp29",
+   "exampleapp30",
+   "exampleapp31",
+   "exampleapp32",
+   "exampleapp33",
+   "exampleapp34",
+   "exampleapp35",
+   "exampleapp36",
+   "exampleapp37",
+   "exampleapp38",
+   "exampleapp39",
+   "exampleapp40",
+   "exampleapp41",
+   "exampleapp42",
+   "exampleapp43",
+   "exampleapp44",
+   "exampleapp45",
+   "exampleapp46",
+   "exampleapp47",
+   "exampleapp48",
+   "exampleapp49",
+   "exampleapp50",
+   "exampleapp51",
+   "exampleapp52",
+   "exampleapp53",
+   "exampleapp54",
+   "exampleapp55",
+   "exampleapp56",
+   "exampleapp57",
+   "exampleapp58",
+   "exampleapp59"
+  ],
+  "NSBonjourServices": [
+   "_chatbox-sync._tcp"
+  ],
+  "NSAppTransportSecurity": {
+   "NSAllowsArbitraryLoads": true
+  },
+  "CFBundleURLTypes": [
+   {
+    "CFBundleURLSchemes": [
+     "chatbox",
+     "prefs"
+    ]
+   }
+  ],
+  "PluginKitPlugins": {
+   "a": {},
+   "b": {}
+  }
+ },
+ "com.example.pay": {
+  "CFBundleDisplayName": "PayNow",
+  "CFBundleShortVersionString": "10.5",
+  "Entitlements": {
+   "com.apple.developer.networking.HotspotHelper": true,
+   "com.apple.developer.networking.wifi-info": true,
+   "com.apple.developer.networking.multicast": true,
+   "com.apple.developer.ubiquity-kvstore-identifier": "TEAM2EXAMPLE.com.example.pay",
+   "com.apple.developer.devicecheck.appattest-environment": "production"
+  },
+  "UIBackgroundModes": [
+   "location",
+   "bluetooth-central",
+   "bluetooth-peripheral",
+   "network-authentication",
+   "fetch"
+  ],
+  "LSApplicationQueriesSchemes": [
+   "bankapp0",
+   "bankapp1",
+   "bankapp2",
+   "bankapp3",
+   "bankapp4",
+   "bankapp5",
+   "bankapp6",
+   "bankapp7",
+   "bankapp8",
+   "bankapp9",
+   "bankapp10",
+   "bankapp11",
+   "bankapp12",
+   "bankapp13",
+   "bankapp14",
+   "bankapp15",
+   "bankapp16",
+   "bankapp17",
+   "bankapp18",
+   "bankapp19",
+   "bankapp20",
+   "bankapp21",
+   "bankapp22",
+   "bankapp23",
+   "bankapp24",
+   "bankapp25",
+   "bankapp26",
+   "bankapp27",
+   "bankapp28",
+   "bankapp29"
+  ],
+  "NSAppTransportSecurity": {
+   "NSExceptionDomains": {
+    "cmpassport.com": {},
+    "id6.me": {},
+    "umeng.com": {}
+   }
+  },
+  "CFBundleURLTypes": [
+   {
+    "CFBundleURLSchemes": [
+     "paynow",
+     "prefs"
+    ]
+   },
+   {
+    "CFBundleURLSchemes": [
+     "paynow"
+    ]
+   }
+  ]
+ },
+ "com.example.shop": {
+  "CFBundleDisplayName": "ShopMall",
+  "CFBundleShortVersionString": "11.2",
+  "Entitlements": {
+   "com.apple.developer.networking.multipath": true,
+   "com.apple.developer.healthkit.background-delivery": true,
+   "com.apple.security.application-groups": [
+    "group.com.example.family"
+   ]
+  },
+  "UIBackgroundModes": [
+   "remote-notification",
+   "processing"
+  ],
+  "NSAppTransportSecurity": {
+   "NSExceptionDomains": {
+    "wostore.cn": {},
+    "tanx.com": {},
+    "miaozhen.com": {}
+   }
+  },
+  "CFBundleURLTypes": [
+   {
+    "CFBundleURLSchemes": [
+     "shopmall",
+     "prefs"
+    ]
+   }
+  ]
+ },
+ "com.example.wallet": {
+  "CFBundleDisplayName": "CoinWallet",
+  "CFBundleShortVersionString": "3.1",
+  "Entitlements": {
+   "com.apple.developer.ubiquity-kvstore-identifier": "TEAM3EXAMPLE.com.example.wallet"
+  },
+  "UIBackgroundModes": [
+   "remote-notification"
+  ],
+  "LSApplicationQueriesSchemes": [
+   "walletapp0",
+   "walletapp1",
+   "walletapp2",
+   "walletapp3",
+   "walletapp4",
+   "walletapp5",
+   "walletapp6",
+   "walletapp7",
+   "walletapp8",
+   "walletapp9",
+   "walletapp10",
+   "walletapp11",
+   "walletapp12",
+   "walletapp13",
+   "walletapp14",
+   "walletapp15",
+   "walletapp16",
+   "walletapp17",
+   "walletapp18",
+   "walletapp19",
+   "walletapp20",
+   "walletapp21",
+   "walletapp22",
+   "walletapp23",
+   "walletapp24"
+  ],
+  "CFBundleURLTypes": [
+   {
+    "CFBundleURLSchemes": [
+     "coinwallet",
+     "tc"
+    ]
+   }
+  ]
+ },
+ "com.example.tonpocket": {
+  "CFBundleDisplayName": "TonPocket",
+  "CFBundleShortVersionString": "1.4",
+  "CFBundleURLTypes": [
+   {
+    "CFBundleURLSchemes": [
+     "tonpocket",
+     "tc"
+    ]
+   }
+  ]
+ },
+ "com.example.safenotes": {
+  "CFBundleDisplayName": "SafeNotes",
+  "CFBundleShortVersionString": "2.0",
+  "UIFileSharingEnabled": true,
+  "_sample_exposed_files": [
+   "vault.kdbx",
+   "bank-statement.pdf",
+   "id-card-scan.jpg"
+  ]
+ },
+ "com.example.tunebox": {
+  "CFBundleDisplayName": "TuneBox",
+  "CFBundleShortVersionString": "9.9",
+  "UIBackgroundModes": [
+   "audio",
+   "external-accessory"
+  ],
+  "UISupportedExternalAccessoryProtocols": [
+   "com.example.carlink"
+  ],
+  "NSAppTransportSecurity": {
+   "NSAllowsArbitraryLoads": true,
+   "NSAllowsLocalNetworking": true
+  }
+ },
+ "com.example.teamdesk": {
+  "CFBundleDisplayName": "TeamDesk",
+  "CFBundleShortVersionString": "7.3",
+  "Entitlements": {
+   "com.apple.developer.ubiquity-kvstore-identifier": "TEAM1EXAMPLE.com.example.teamdesk",
+   "keychain-access-groups": [
+    "TEAM1EXAMPLE.com.example.shared"
+   ]
+  },
+  "UIBackgroundModes": [
+   "nearby-interaction",
+   "remote-notification"
+  ]
+ },
+ "com.example.tripgo": {
+  "CFBundleDisplayName": "TripGo",
+  "CFBundleShortVersionString": "5.0",
+  "LSApplicationQueriesSchemes": [
+   "carbrand0",
+   "carbrand1",
+   "carbrand2",
+   "carbrand3",
+   "carbrand4",
+   "carbrand5",
+   "carbrand6",
+   "carbrand7",
+   "carbrand8",
+   "carbrand9",
+   "carbrand10",
+   "carbrand11",
+   "carbrand12",
+   "carbrand13",
+   "carbrand14",
+   "carbrand15",
+   "carbrand16",
+   "carbrand17",
+   "carbrand18",
+   "carbrand19",
+   "carbrand20",
+   "carbrand21",
+   "carbrand22",
+   "carbrand23",
+   "carbrand24",
+   "carbrand25",
+   "carbrand26",
+   "carbrand27",
+   "carbrand28",
+   "carbrand29",
+   "carbrand30",
+   "carbrand31",
+   "carbrand32",
+   "carbrand33",
+   "carbrand34",
+   "carbrand35",
+   "carbrand36",
+   "carbrand37",
+   "carbrand38",
+   "carbrand39"
+  ],
+  "NSAppTransportSecurity": {
+   "NSExceptionDomains": {
+    "open.e.189.cn": {},
+    "jspatch.com": {}
+   }
+  },
+  "CFBundleURLTypes": [
+   {
+    "CFBundleURLSchemes": [
+     "tripgo",
+     "prefs"
+    ]
+   }
+  ]
+ },
+ "com.example.plainreader": {
+  "CFBundleDisplayName": "PlainReader",
+  "CFBundleShortVersionString": "1.0"
+ },
+ "com.example.stepup": {
+  "CFBundleDisplayName": "StepUp",
+  "CFBundleShortVersionString": "4.2",
+  "Entitlements": {
+   "com.apple.developer.healthkit.background-delivery": true
+  },
+  "UIBackgroundModes": [
+   "location",
+   "bluetooth-central"
+  ]
+ },
+ "com.example.tunnelx": {
+  "CFBundleDisplayName": "TunnelX",
+  "CFBundleShortVersionString": "2.6",
+  "Entitlements": {
+   "com.apple.developer.networking.networkextension": [
+    "packet-tunnel-provider"
+   ]
+  },
+  "NSBonjourServices": [
+   "_tunnelx._tcp"
+  ]
+ }
+}

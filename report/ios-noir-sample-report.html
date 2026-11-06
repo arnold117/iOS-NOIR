@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="zh" data-lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iOS-NOIR Forensic Privacy Audit Report — iPhone (synthetic sample data) (iOS —)</title>
+<style>
+:root {
+  --background: #f7f7f8; --foreground: #18181b;
+  --card: #ffffff; --card-foreground: #18181b;
+  --muted: #f4f4f5; --muted-foreground: #71717a;
+  --border: #e4e4e7; --ring: #a1a1aa;
+  --blue: #2563eb; --orange: #ea580c; --green: #16a34a; --red: #dc2626; --purple: #7c3aed;
+  --font-size-base: 15px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #121216; --foreground: #fafafa;
+    --card: #1c1c22; --card-foreground: #fafafa;
+    --muted: #272730; --muted-foreground: #a1a1aa;
+    --border: #32323e; --ring: #52525b;
+    --blue: #60a5fa; --orange: #fb923c; --green: #4ade80; --red: #f87171; --purple: #a78bfa;
+  }
+}
+html[data-lang="zh"] .i18n-en { display: none !important; }
+html[data-lang="en"] .i18n-zh { display: none !important; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 28px clamp(16px, 4vw, 56px) 64px;
+  background: var(--background); color: var(--foreground);
+  font-size: var(--font-size-base); line-height: 1.6;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+h1 { font-size: calc(var(--font-size-base) + 9px); margin: 0 0 6px; letter-spacing: -0.02em; }
+h2 { font-size: calc(var(--font-size-base) + 4px); margin: 12px 0 8px; }
+h3, h4 { font-size: calc(var(--font-size-base) + 1px); margin: 18px 0 8px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 22px; }
+li { margin: 4px 0; }
+code {
+  background: var(--muted); color: var(--card-foreground);
+  border-radius: 4px; padding: 1px 5px;
+  font-size: 0.85em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+hr { border: 0; border-top: 1px solid var(--border); margin: 20px 0; }
+.card {
+  background: var(--card); color: var(--card-foreground);
+  border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px;
+}
+.card-body { padding: 14px 18px; }
+.text-muted { color: var(--muted-foreground); }
+.text-small { font-size: 13px; }
+.text-end { text-align: right; }
+.text-nowrap { white-space: nowrap; }
+.mono { font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.viz-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); margin: 16px 0; }
+.viz-stat-value { font-size: calc(var(--font-size-base) + 8px); font-weight: 600; line-height: 1.3; }
+.nav-pills { display: flex; flex-wrap: wrap; gap: 6px; padding: 5px; background: var(--muted); border-radius: 10px; width: fit-content; max-width: 100%; margin: 18px 0; }
+.nav-link {
+  appearance: none; border: 0; background: transparent; color: var(--muted-foreground);
+  border-radius: 7px; padding: 6px 14px; font-size: 14px; cursor: pointer; font-family: inherit;
+}
+.nav-link.active { background: var(--card); color: var(--card-foreground); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.lang-switch {
+  display: inline-flex; gap: 4px; padding: 3px; background: var(--muted); border-radius: 8px; border: 1px solid var(--border);
+}
+.lang-btn {
+  appearance: none; border: 0; background: transparent; color: var(--muted-foreground);
+  border-radius: 6px; padding: 4px 10px; font-size: 13px; cursor: pointer; font-weight: 600;
+}
+.lang-btn.active { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+.table-responsive { overflow-x: auto; margin: 10px 0; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 4px; }
+.table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.table th { text-align: left; color: var(--muted-foreground); font-weight: 600; border-bottom: 1px solid var(--border); padding: 10px 12px; }
+.table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.table tr:last-child td { border-bottom: 0; }
+.evi { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; font-size: 12px; white-space: nowrap; }
+.evi-seen { color: var(--green); }
+.evi-cap  { color: var(--orange); }
+.evi-inf  { color: var(--purple); }
+</style>
+</head>
+<body>
+<div id="ios-noir-report">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+    <div>
+      <h1>
+        <span class="i18n-zh">🛡️ iOS-NOIR 未越狱 iPhone 底层隐私与遥测取证报告</span>
+        <span class="i18n-en">🛡️ iOS-NOIR Stock iPhone Privacy, Entitlement &amp; Telemetry Forensic Report</span>
+      </h1>
+      <p class="text-muted text-small">
+        <span class="i18n-zh">设备: <code>iPhone (synthetic sample data)</code> · 系统: <code>iOS —</code> · 硬件区域: <code>— (—)</code> · 生成时间: <code>2026-11-06T07:45:04</code></span>
+        <span class="i18n-en">Device: <code>iPhone (synthetic sample data)</code> · OS: <code>iOS —</code> · Hardware Region: <code>— (—)</code> · Generated: <code>2026-11-06T07:45:04</code></span>
+      </p>
+    </div>
+    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+      <div class="lang-switch" role="group" aria-label="Language Switch">
+        <button type="button" class="lang-btn active" data-set-lang="zh">🇨🇳 简体中文</button>
+        <button type="button" class="lang-btn " data-set-lang="en">🇺🇸 English</button>
+      </div>
+      <div class="text-small text-muted">
+        Inspired by <a href="https://github.com/Verlintas/NOIR" style="color:var(--blue)">Verlintas/NOIR</a> &amp; <a href="https://github.com/RootSir/claude-ios-privacy-analysis" style="color:var(--blue)">RootSir/claude-ios-privacy-analysis</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="viz-grid">
+    <div class="card"><div class="card-body">
+      <div class="text-muted text-small"><span class="i18n-zh">已审计用户安装应用</span><span class="i18n-en">Audited User Apps</span></div>
+      <div class="viz-stat-value">12</div>
+      <div class="text-small text-muted"><span class="i18n-zh">全量提取 Apple 签名 Entitlements</span><span class="i18n-en">Apple-signed Entitlements extracted</span></div>
+    </div></div>
+    <div class="card"><div class="card-body">
+      <div class="text-muted text-small"><span class="i18n-zh">监管特批无声 VoIP 唤醒</span><span class="i18n-en">Silent VoIP Exemption</span></div>
+      <div class="viz-stat-value" style="color:var(--red)">1</div>
+      <div class="text-small text-muted"><code>unrestricted-voip-regulatory</code></div>
+    </div></div>
+    <div class="card"><div class="card-body">
+      <div class="text-muted text-small"><span class="i18n-zh">系统级 Wi-Fi 扫描钩子</span><span class="i18n-en">Wi-Fi BSSID Scan Hooks</span></div>
+      <div class="viz-stat-value" style="color:var(--orange)">2</div>
+      <div class="text-small text-muted"><code>HotspotHelper</code></div>
+    </div></div>
+    <div class="card"><div class="card-body">
+      <div class="text-muted text-small"><span class="i18n-zh">写死运营商取号网关</span><span class="i18n-en">Carrier Phone-Number Auth Gateways</span></div>
+      <div class="viz-stat-value" style="color:var(--purple)">3</div>
+      <div class="text-small text-muted"><code>cmpassport</code> / <code>wostore</code> / <code>id6.me</code></div>
+    </div></div>
+    <div class="card"><div class="card-body">
+      <div class="text-muted text-small"><span class="i18n-zh">跨应用共享容器串通池</span><span class="i18n-en">Cross-App Shared Pools</span></div>
+      <div class="viz-stat-value" style="color:var(--blue)">1</div>
+      <div class="text-small text-muted"><span class="i18n-zh">突破沙盒共享本地存储与钥匙串</span><span class="i18n-en">Shared App Groups &amp; Keychains</span></div>
+    </div></div>
+    <div class="card"><div class="card-body">
+      <div class="text-muted text-small"><span class="i18n-zh">免 FaceID 暴露沙盒目录</span><span class="i18n-en">Exposed Sandbox Containers</span></div>
+      <div class="viz-stat-value" style="color:var(--red)">1</div>
+      <div class="text-small text-muted"><span class="i18n-zh">USB/Wi-Fi 直接可读写文件</span><span class="i18n-en">Readable via USB/Wi-Fi without FaceID</span></div>
+    </div></div>
+  </div>
+
+  <div class="nav-pills" role="tablist">
+    <button class="nav-link active" role="tab" aria-selected="true" aria-controls="p-overview" id="tab-overview">
+      <span class="i18n-zh">1. 全量应用审计榜 (10 检出 / 12 总计)</span>
+      <span class="i18n-en">1. Full App Audit (10 Flagged / 12 Total)</span>
+    </button>
+    <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-identity" id="tab-identity">
+      <span class="i18n-zh">2. 五层持久设备身份与穿 VPN 链</span>
+      <span class="i18n-en">2. 5-Layer Persistent Identity &amp; VPN Bypass</span>
+    </button>
+    <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-probers" id="tab-probers">
+      <span class="i18n-zh">3. URL Scheme 嗅探 (4) 与抢注劫持 (2)</span>
+      <span class="i18n-en">3. URL Scheme Probing (4) &amp; Hijacking (2)</span>
+    </button>
+    <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-ats" id="tab-ats">
+      <span class="i18n-zh">4. ATS 降级 (3) 与局域网/车机探针 (3)</span>
+      <span class="i18n-en">4. ATS Exceptions (3) &amp; LAN/Car Probes (3)</span>
+    </button>
+    <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-collusion" id="tab-collusion">
+      <span class="i18n-zh">5. 跨应用串通 (1) 与沙盒/AFC裸奔 (1)</span>
+      <span class="i18n-en">5. Collusion (1) &amp; Sandbox/AFC Exposure (1)</span>
+    </button>
+    <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-ips" id="tab-ips">
+      <span class="i18n-zh">6. 内核黑匣子 (.ips 闪存狂魔/CPU断头台/内嵌SDK)</span>
+      <span class="i18n-en">6. Kernel .ips Black-Box (1GB/Day Disk Writes &amp; SDKs)</span>
+    </button>
+    <button class="nav-link" role="tab" aria-selected="false" aria-controls="p-method" id="tab-method">
+      <span class="i18n-zh">7. 证据分级与方法论局限</span>
+      <span class="i18n-en">7. Evidence Grading &amp; Methodology</span>
+    </button>
+  </div>
+
+  <!-- TAB 1: OVERVIEW -->
+  <div id="p-overview" role="tabpanel" aria-labelledby="tab-overview">
+    <div class="card"><div class="card-body">
+      <h3>
+        <span class="i18n-zh">📌 证据分级说明（参考 <a href="https://github.com/RootSir/claude-ios-privacy-analysis" style="color:var(--blue)">RootSir 证据审计标准</a>）</span>
+        <span class="i18n-en">📌 Three-Tier Evidence Grading (Inspired by <a href="https://github.com/RootSir/claude-ios-privacy-analysis" style="color:var(--blue)">RootSir's Forensic Standard</a>)</span>
+      </h3>
+      <p class="text-small i18n-zh">
+        为避免将「静态配置存在」夸大为「实时作恶实锤」，本报告对每项结论实施严格的三级证据标注，并在下方每条检出项下直接附带<b>「👉 能干什么」大白话解释</b>：<br>
+        • <span class="evi evi-seen">【实锤 / VERIFIED】</span>：直接从 Apple 签名二进制 Entitlements、<code>Info.plist</code> 静态白名单或 <code>HouseArrest</code> 沙盒文件系统中提取到的确凿配置与暴露文件。<br>
+        • <span class="evi evi-cap">【机制实锤 / CAPABILITY】</span>：应用持有 Apple 官方签发的特殊内核级豁免签名（如 <code>unrestricted-voip-regulatory</code>、<code>HotspotHelper</code>、<code>multipath</code>），具备随时绕过常规沙盒限制的底层能力（具体触发频率取决于服务端下发指令）。<br>
+        • <span class="evi evi-inf">【推断 / INFERRED】</span>：基于共享 App Group 容器、Keychain 共享组及第三方风控/广告域名（如 <code>shuzilm.cn</code>、<code>id6.me</code>）的标准 SDK 行为推断其跨应用关联逻辑。
+      </p>
+      <p class="text-small i18n-en">
+        To avoid conflating static capability with active runtime abuse, every finding is graded into 3 forensic tiers with a plain-English <b>"👉 What it does"</b> explanation:<br>
+        • <span class="evi evi-seen">[VERIFIED]</span>: Directly extracted from Apple-signed Entitlements, <code>Info.plist</code> static whitelists, or unauthenticated <code>HouseArrest</code> sandbox enumeration.<br>
+        • <span class="evi evi-cap">[CAPABILITY]</span>: The app holds an Apple-signed privileged kernel entitlement (<code>unrestricted-voip-regulatory</code>, <code>HotspotHelper</code>, <code>multipath</code>) unlocking the bypass mechanism; trigger frequency depends on server policies.<br>
+        • <span class="evi evi-inf">[INFERRED]</span>: Cross-app identity correlation inferred from shared App Group containers, shared Keychain prefixes, and embedded attribution/risk SDK domains.
+      </p>
+      <details style="margin-top:10px; border-top:1px solid var(--border); padding-top:10px;">
+        <summary style="cursor:pointer; font-weight:600; font-size:14px; color:var(--blue);">
+          <span class="i18n-zh">📖 看不懂专业术语？点此展开《iOS 底层特权与后台黑话「人话」危害速查词典》</span>
+          <span class="i18n-en">📖 Plain-English Glossary: What Do These iOS Entitlements &amp; Background Modes Actually Do?</span>
+        </summary>
+        <div class="table-responsive" style="margin-top:10px;">
+          <table class="table text-small">
+            <thead>
+              <tr>
+                <th><span class="i18n-zh">底层特权 / 标志位名称</span><span class="i18n-en">Entitlement / Plist Key</span></th>
+                <th><span class="i18n-zh">大白话解释：它到底能干什么？</span><span class="i18n-en">Plain-Language Explanation: What Can It Do To You?</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>unrestricted-voip-regulatory</code></td>
+                <td>
+                  <span class="i18n-zh">从 iOS 13 起苹果规定借道语音电话通道唤醒 App 必须弹出全屏来电界面，否则封杀；但持有该特批签名的超级 App（微信/QQ/钉钉），<b>服务器随时可以下发无声指令把你彻底划掉的后台死进程拉活干活，手机屏幕不亮、不响、毫无痕迹</b>。</span>
+                  <span class="i18n-en">Since iOS 13, Apple requires VoIP pushes to display a full-screen call UI. Apps holding this undocumented regulatory exemption (WeChat, QQ, DingTalk) <b>can be silently woken from a dead state by their servers 10,000+ times without lighting up or ringing your screen</b>.</span>
+                </td>
+              </tr>
+              <tr>
+                <td><code>HotspotHelper</code></td>
+                <td>
+                  <span class="i18n-zh">本来是给连公共 Wi-Fi 工具用的接口，如果外卖/支付/社交软件持有它，<b>只要你打开系统 Wi-Fi 列表或走过商场，iOS 内核就会自动唤醒它，把周围所有路由器的硬件 MAC 地址 (BSSID) 喂给它——哪怕你关了 GPS 定位，它也能反推出你在哪栋楼哪家店</b>。</span>
+                  <span class="i18n-en">Intended for Wi-Fi portal utilities. When held by food-delivery or payment apps, <b>iOS automatically wakes the app whenever Wi-Fi is scanned and feeds it nearby router MAC addresses (BSSIDs) — pinpointing your physical building/floor even with GPS turned off</b>.</span>
+                </td>
+              </tr>
+              <tr>
+                <td><code>multipath</code> / <code>network-authentication</code></td>
+                <td>
+                  <span class="i18n-zh">允许 App 在连着家里 Wi-Fi 或挂着 VPN 代理时，<b>单独强行开启 4G/5G 蜂窝流量网卡直连移动/联通/电信网关</b>，不仅瞬间暴露你的真实 SIM 卡归属地和基站 IP，还能配合运营商网关静默提取你的本机手机号。</span>
+                  <span class="i18n-en">Allows an app to <b>force a 4G/5G cellular data connection (<code>pdp_ip0</code>) even while connected to Wi-Fi or a VPN</b>, exposing your real carrier IP and enabling silent SIM phone-number extraction via telecom gateways.</span>
+                </td>
+              </tr>
+              <tr>
+                <td><code>ubiquity-kvstore-identifier</code></td>
+                <td>
+                  <span class="i18n-zh">把唯一设备追踪码偷偷写进你的私人 iCloud 云盘隐藏空间。<b>就算你卸载重装 App，甚至去苹果店买了一台全新 iPhone 登录同一个 Apple ID，它也能在后台秒级认出你还是原来那个人</b>。</span>
+                  <span class="i18n-en">Writes unique tracking tokens into your private iCloud key-value storage. <b>Even if you uninstall the app or buy a brand-new iPhone with the same Apple ID, the token automatically syncs back to re-identify you</b>.</span>
+                </td>
+              </tr>
+              <tr>
+                <td><code>multicast</code></td>
+                <td>
+                  <span class="i18n-zh">允许向你家里或公司的 Wi-Fi 发送多播探测包，<b>摸清你家里装了什么牌子的电视、NAS 存储、智能音箱、打印机或路由器</b>，用来精准评估你的家庭消费力与社会关系。</span>
+                  <span class="i18n-en">Sends mDNS/SSDP multicast discovery packets across your local Wi-Fi to <b>enumerate smart TVs, NAS servers, speakers, and routers in your home</b>.</span>
+                </td>
+              </tr>
+              <tr>
+                <td><code>LSApplicationQueriesSchemes</code></td>
+                <td>
+                  <span class="i18n-zh">通过向系统挨个询问“能不能打开某个暗号（如 <code>shadowrocket://</code>、<code>binance://</code>、<code>porsche://</code>）”，<b>在不弹窗的情况下摸清你手机里有没有装翻墙软件、境外银行、冷钱包或豪车车企 App</b>。</span>
+                  <span class="i18n-en">Hardcodes up to 280+ URL schemes to silently query iOS (without any popup) whether you have <b>VPN apps (<code>shadowrocket</code>), crypto wallets, offshore banks, or luxury car apps installed</b>.</span>
+                </td>
+              </tr>
+              <tr>
+                <td><code>UIFileSharingEnabled</code> / <code>HouseArrest</code></td>
+                <td>
+                  <span class="i18n-zh">App 把内部 <code>/Documents</code> 文件夹直接暴露在外部同步接口下。<b>只要手机插上信任过的电脑（或在同一局域网开启 Wi-Fi 同步），无需解锁 App 或验证 FaceID，1 秒钟就能直接列出甚至拷走里面的密码库、账单 PDF 与本地数据库</b>。</span>
+                  <span class="i18n-en">Exposes the app's <code>/Documents</code> container over USB and local Wi-Fi sync. <b>Any previously trusted computer can list and copy its files (.kdbx vaults, bank PDFs, SQLite logs) in 1 second without FaceID</b>.</span>
+                </td>
+              </tr>
+              <tr>
+                <td><code>NSExceptionDomains</code></td>
+                <td>
+                  <span class="i18n-zh">苹果默认强制所有请求走安全 HTTPS；如果开发者在配置里专门点名某些域名允许明文 HTTP 或忽略证书校验，<b>顺藤摸瓜就能直接抓出它内部接入的第三方设备指纹库（如数字联盟 <code>shuzilm.cn</code>）、商业广告网（如秒针 <code>miaozhen.com</code>）甚至残留的热更新后门（<code>jspatch.com</code>）</b>。</span>
+                  <span class="i18n-en">Domains where developers explicitly bypass Apple's HTTPS App Transport Security — <b>directly exposing embedded device-DNA SDKs (<code>shuzilm.cn</code>), ad-tech trackers (<code>miaozhen.com</code>), or hot-patching backdoors (<code>jspatch.com</code>)</b>.</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div></div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin:16px 0 8px;">
+      <h3 style="margin:0;">
+        <span class="i18n-zh">🔥 全量应用隐私越界与隐秘后门审计表（共 12 款，检出权限/后台/嗅探行为 10 款）</span>
+        <span class="i18n-en">🔥 Full App Privacy &amp; Entitlement Audit Table (10 Flagged / 12 Total Installed)</span>
+      </h3>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <input id="app-search" type="search" placeholder="🔍 Search app / Bundle ID / entitlement / domain..." style="padding:6px 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); min-width:260px; font-size:13.5px;">
+        <label class="text-small" style="cursor:pointer; user-select:none;">
+          <input type="checkbox" id="only-flagged" checked>
+          <span class="i18n-zh">仅显示检出特权/后台/嗅探项 (10 款)</span>
+          <span class="i18n-en">Show only flagged apps (10)</span>
+        </label>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table" id="audit-table">
+        <thead>
+          <tr>
+            <th class="text-end">#</th>
+            <th class="text-end"><span class="i18n-zh">风险分</span><span class="i18n-en">Score</span></th>
+            <th><span class="i18n-zh">应用名称 / Bundle ID</span><span class="i18n-en">App Name / Bundle ID</span></th>
+            <th><span class="i18n-zh">后台/嗅探/插件</span><span class="i18n-en">BG / Probes / Plugins</span></th>
+            <th><span class="i18n-zh">检出的底层特权与硬编码证据（全量无截断，含证据等级与人话解释）</span><span class="i18n-en">Detected Privileged Entitlements &amp; Hardcoded Evidence (Full List + Plain-English Impact)</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="audit-row" data-score="192"><td class="text-end text-muted">1</td><td class="text-end"><b style="color:var(--red)">192</b></td><td><b>ChatBox</b><br><code class="mono">com.example.chat</code> <span class="text-muted text-small">v8.0.1</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>4</b><br>嗅探: <b>60</b><br>插件: <b>2</b></span><span class="i18n-en">BG Modes: <b>4</b><br>Probes: <b>60</b><br>Plugins: <b>2</b></span></td><td><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>🚨 监管特批: 无限制静默VoIP唤醒 (unrestricted-voip-regulatory)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>🚨 Regulatory Exemption: Unrestricted Silent VoIP Wakeup (unrestricted-voip-regulatory)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>不用弹全屏来电界面，服务器可随时下发无声指令把划掉的死进程静默拉活（屏幕不亮不响）。</span><span class="i18n-en">👉 <b>What it does: </b>Bypasses iOS 13+ mandatory CallKit UI rules; allows servers to silently wake terminated background processes via PushKit without lighting up the screen.</span></div></div><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>📶 系统级Wi-Fi扫描唤醒钩子 (HotspotHelper)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>📶 System-Level Wi-Fi Scan Hook (HotspotHelper)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>只要你打开系统 Wi-Fi 设置或走过商场，iOS 内核自动唤醒它并把周围所有路由器的 MAC 地址 (BSSID) 喂给它，没开 GPS 也能定位你。</span><span class="i18n-en">👉 <b>What it does: </b>Automatically woken by iOS whenever Wi-Fi networks are scanned, receiving nearby router MAC addresses (BSSIDs) for GPS-free physical location tracking.</span></div></div><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>🛡️ 底层网络扩展与虚拟网卡控制 (networkextension)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>🛡️ Kernel Network Extension &amp; Virtual Tunnel Control (networkextension)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>在系统底层注册虚拟网卡或流量隧道，具备接管、分流系统网络流量的底层能力。</span><span class="i18n-en">👉 <b>What it does: </b>Registers system-level virtual network interfaces or tunnels capable of routing or inspecting device traffic.</span></div></div><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>🕵️ 内置网络流量内容审查过滤器 (content-filter)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>🕵️ On-Device Network Content Filter &amp; Inspector (content-filter)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>在设备端挂载内容审查过滤器，可监控或拦截进出设备的网络请求。</span><span class="i18n-en">👉 <b>What it does: </b>Attaches an on-device content filter to inspect or block incoming/outgoing network connections.</span></div></div><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>📶 Wi-Fi 热点钩子配套后台模式 (network-authentication)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>📶 Wi-Fi Hotspot Helper Background Mode (network-authentication)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>注册系统 Wi-Fi 热点钩子（HotspotHelper）时必须声明的后台模式，跟 HotspotHelper 配套出现。</span><span class="i18n-en">👉 <b>What it does: </b>Background mode required to register as a Wi-Fi Hotspot Helper; it appears together with the HotspotHelper entitlement.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>⚠️ 全局关闭HTTPS强制加密 (NSAllowsArbitraryLoads)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>⚠️ Global Cleartext HTTP Allowed (NSAllowsArbitraryLoads)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>在配置中强行关闭了苹果默认的 HTTPS 强制加密保护（允许明文 HTTP 传输），在公共 Wi-Fi 或运营商基站下流量更容易被嗅探或劫持。</span><span class="i18n-en">👉 <b>What it does: </b>Explicitly disables Apple&#x27;s mandatory HTTPS App Transport Security, allowing cleartext HTTP traffic vulnerable to Wi-Fi or carrier sniffing.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>🕵️ 查户口嗅探已安装应用 (60 个暗号)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>🕵️ Installed-App URL Scheme Probing (60 schemes)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>在后台挨个试探你手机里有没有装特定 App（如 <code>exampleapp0, exampleapp1, exampleapp2, exampleapp3, exampleapp4, exampleapp5, exampleapp6, exampleapp7 等共 60 个</code>），用来给你的资产、翻墙习惯或社交圈画像。</span><span class="i18n-en">👉 <b>What it does: </b>Silently probes whether specific apps (<code>exampleapp0, exampleapp1, exampleapp2, exampleapp3, exampleapp4, exampleapp5, exampleapp6, exampleapp7 (+52 more)</code>) are installed via <code>canOpenURL:</code> to profile your wealth, VPN usage, or social graph.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>📡 局域网 mDNS/Bonjour 广播与嗅探探针 (1 项):</b> <code>_chatbox-sync._tcp</code></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>📡 LAN mDNS/Bonjour Broadcast &amp; Discovery Probes (1):</b> <code>_chatbox-sync._tcp</code></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>在所连 Wi-Fi 局域网内主动广播或嗅探特定服务（如代理软件、同类节点、智能家电或运营商网关），在公共或公司 Wi-Fi 下可能暴露本机安装的软件。</span><span class="i18n-en">👉 <b>What it does: </b>Broadcasts or scans for specific mDNS services on your local Wi-Fi (e.g., proxy nodes, peer apps, smart appliances), potentially exposing installed software to LAN administrators.</span></div></div><div class="text-small" style="margin-top:4px;"><span class="i18n-zh"><span class="text-muted">🔄 声明的后台常驻能力 (4 项):</span> <code>📞voip (网络电话后台常驻唤醒)</code> · <code>🔔remote-notification (静默推送唤醒后台)</code> · <code>🔊audio (后台音频播放/无声保活/录音)</code> · <code>📶network-authentication (Wi-Fi 热点钩子配套后台模式)</code></span><span class="i18n-en"><span class="text-muted">🔄 Declared Background Modes (4):</span> <code>📞voip (Background VoIP call keep-alive &amp; wakeup)</code> · <code>🔔remote-notification (Silent push background wakeup)</code> · <code>🔊audio (Background audio / silent keep-alive / mic)</code> · <code>📶network-authentication (Wi-Fi Hotspot Helper background mode)</code></span></div></td></tr><tr class="audit-row" data-score="159"><td class="text-end text-muted">2</td><td class="text-end"><b style="color:var(--red)">159</b></td><td><b>PayNow</b><br><code class="mono">com.example.pay</code> <span class="text-muted text-small">v10.5</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>5</b><br>嗅探: <b>30</b><br>插件: <b>0</b></span><span class="i18n-en">BG Modes: <b>5</b><br>Probes: <b>30</b><br>Plugins: <b>0</b></span></td><td><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>📶 系统级Wi-Fi扫描唤醒钩子 (HotspotHelper)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>📶 System-Level Wi-Fi Scan Hook (HotspotHelper)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>只要你打开系统 Wi-Fi 设置或走过商场，iOS 内核自动唤醒它并把周围所有路由器的 MAC 地址 (BSSID) 喂给它，没开 GPS 也能定位你。</span><span class="i18n-en">👉 <b>What it does: </b>Automatically woken by iOS whenever Wi-Fi networks are scanned, receiving nearby router MAC addresses (BSSIDs) for GPS-free physical location tracking.</span></div></div><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>🏠 局域网全屋设备多播探测 (multicast)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>🏠 Local Network Multicast Device Discovery (multicast)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>向你家里或办公室的 Wi-Fi 发送局域网广播包，探测你家里有哪些智能电视、NAS、音响、打印机，精准描绘家庭资产画像。</span><span class="i18n-en">👉 <b>What it does: </b>Sends mDNS/SSDP/UDP multicast probes across your local Wi-Fi to discover smart TVs, NAS drives, speakers, and routers.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>☁️ iCloud防卸载跨机持久化烙印 (ubiquity-kvstore)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>☁️ Uninstall- &amp; New-iPhone-Proof iCloud KVS Token (ubiquity-kvstore)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>把唯一追踪码偷偷写进你的私人 iCloud 云空间——就算你卸载重装 App，甚至换了一台新 iPhone，它也能秒认出还是你。</span><span class="i18n-en">👉 <b>What it does: </b>Stores persistent tracking tokens in your private iCloud Key-Value Store that survive app uninstallation and restore on new iPhones.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>🔐 硬件级安全隔区设备证明 (AppAttest)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>🔐 Secure Enclave Hardware Device Attestation (AppAttest)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>调用苹果安全隔区硬件芯片生成不可篡改的设备身份证，常用于防作弊与硬件级封号关联。</span><span class="i18n-en">👉 <b>What it does: </b>Uses the Apple Secure Enclave to bind accounts to an unforgeable hardware attestation key.</span></div></div><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>📍 读取所连路由器物理MAC地址 (wifi-info / BSSID)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>📍 Connected Wi-Fi Router BSSID MAC Reader (wifi-info)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>直接读取你当前所连路由器的硬件 MAC 地址 (BSSID)，哪怕换账号或重装，只要连同一个家庭/办公 Wi-Fi 就能锁定你的真实住址（关闭「精确位置」可防御）。</span><span class="i18n-en">👉 <b>What it does: </b>Reads the hardware MAC address (BSSID) of your connected Wi-Fi router to lock onto your physical home/office address (disable &#x27;Precise Location&#x27; to block).</span></div></div><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>📶 Wi-Fi 热点钩子配套后台模式 (network-authentication)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>📶 Wi-Fi Hotspot Helper Background Mode (network-authentication)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>注册系统 Wi-Fi 热点钩子（HotspotHelper）时必须声明的后台模式，跟 HotspotHelper 配套出现。</span><span class="i18n-en">👉 <b>What it does: </b>Background mode required to register as a Wi-Fi Hotspot Helper; it appears together with the HotspotHelper entitlement.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>🕵️ 查户口嗅探已安装应用 (30 个暗号)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>🕵️ Installed-App URL Scheme Probing (30 schemes)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>在后台挨个试探你手机里有没有装特定 App（如 <code>bankapp0, bankapp1, bankapp2, bankapp3, bankapp4, bankapp5, bankapp6, bankapp7 等共 30 个</code>），用来给你的资产、翻墙习惯或社交圈画像。</span><span class="i18n-en">👉 <b>What it does: </b>Silently probes whether specific apps (<code>bankapp0, bankapp1, bankapp2, bankapp3, bankapp4, bankapp5, bankapp6, bankapp7 (+22 more)</code>) are installed via <code>canOpenURL:</code> to profile your wealth, VPN usage, or social graph.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>🎯 ATS 加密降级/豁免后门域 (3 个):</b> <code>cmpassport.com, id6.me, umeng.com</code></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>🎯 ATS HTTPS-Downgrade Exception Domains (3):</b> <code>cmpassport.com, id6.me, umeng.com</code></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>开发者专门向苹果申请对这些域名关闭强制 HTTPS 保护（允许明文传输或忽略证书校验），常暴露出第三方追踪 SDK、运营商取号接口或热更新后门。</span><span class="i18n-en">👉 <b>What it does: </b>Domains where the developer explicitly disabled Apple's strict HTTPS requirement — often exposing embedded attribution SDKs, carrier auth gateways, or legacy hot-patch backdoors.</span></div></div><div class="text-small" style="margin-top:4px;"><span class="i18n-zh"><span class="text-muted">🔄 声明的后台常驻能力 (5 项):</span> <code>📍location (后台持续定位追踪)</code> · <code>🦷bluetooth-central (后台持续扫描周边蓝牙设备/信标)</code> · <code>📡bluetooth-peripheral (后台作为蓝牙信标对外广播)</code> · <code>📶network-authentication (Wi-Fi 热点钩子配套后台模式)</code> · <code>🔄fetch (系统定期后台唤醒拉取数据)</code></span><span class="i18n-en"><span class="text-muted">🔄 Declared Background Modes (5):</span> <code>📍location (Continuous background GPS tracking)</code> · <code>🦷bluetooth-central (Background Bluetooth beacon scanning)</code> · <code>📡bluetooth-peripheral (Background Bluetooth beacon broadcasting)</code> · <code>📶network-authentication (Wi-Fi Hotspot Helper background mode)</code> · <code>🔄fetch (Periodic background data fetch)</code></span></div></td></tr><tr class="audit-row" data-score="61"><td class="text-end text-muted">3</td><td class="text-end"><b style="color:var(--orange)">61</b></td><td><b>ShopMall</b><br><code class="mono">com.example.shop</code> <span class="text-muted text-small">v11.2</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>2</b><br>嗅探: <b>0</b><br>插件: <b>0</b></span><span class="i18n-en">BG Modes: <b>2</b><br>Probes: <b>0</b><br>Plugins: <b>0</b></span></td><td><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>📡 绕过Wi-Fi并发拉起蜂窝通道 (multipath)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>📡 Multipath Cellular VPN/Wi-Fi Bypass (multipath)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>哪怕你连着家里 Wi-Fi 或挂着 VPN，它也能同时强行开启 4G/5G 蜂窝流量通道直连服务器（常用于绕过代理或配合基站取号）。</span><span class="i18n-en">👉 <b>What it does: </b>Forces concurrent 4G/5G cellular (pdp_ip0) connections even while on Wi-Fi or VPN — bypassing proxies to hit carrier gateways.</span></div></div><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>❤️ 锁屏后台静默实时推送健康数据 (healthkit-bg)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>❤️ Lock-Screen Real-Time HealthKit Background Delivery (healthkit-bg)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>锁屏状态下，只要你的步数、心率或睡眠数据更新，系统就会在后台静默唤醒它同步生理数据。</span><span class="i18n-en">👉 <b>What it does: </b>Silently wakes the app in the background while locked whenever HealthKit step, heart-rate, or sleep records change.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>🎯 ATS 加密降级/豁免后门域 (3 个):</b> <code>wostore.cn, tanx.com, miaozhen.com</code></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>🎯 ATS HTTPS-Downgrade Exception Domains (3):</b> <code>wostore.cn, tanx.com, miaozhen.com</code></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>开发者专门向苹果申请对这些域名关闭强制 HTTPS 保护（允许明文传输或忽略证书校验），常暴露出第三方追踪 SDK、运营商取号接口或热更新后门。</span><span class="i18n-en">👉 <b>What it does: </b>Domains where the developer explicitly disabled Apple's strict HTTPS requirement — often exposing embedded attribution SDKs, carrier auth gateways, or legacy hot-patch backdoors.</span></div></div><div class="text-small" style="margin-top:4px;"><span class="i18n-zh"><span class="text-muted">🔄 声明的后台常驻能力 (2 项):</span> <code>🔔remote-notification (静默推送唤醒后台)</code> · <code>⚙️processing (锁屏充电后台耗时任务)</code></span><span class="i18n-en"><span class="text-muted">🔄 Declared Background Modes (2):</span> <code>🔔remote-notification (Silent push background wakeup)</code> · <code>⚙️processing (Background processing tasks while locked)</code></span></div></td></tr><tr class="audit-row" data-score="43"><td class="text-end text-muted">4</td><td class="text-end"><b style="color:var(--orange)">43</b></td><td><b>TeamDesk</b><br><code class="mono">com.example.teamdesk</code> <span class="text-muted text-small">v7.3</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>2</b><br>嗅探: <b>0</b><br>插件: <b>0</b></span><span class="i18n-en">BG Modes: <b>2</b><br>Probes: <b>0</b><br>Plugins: <b>0</b></span></td><td><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>☁️ iCloud防卸载跨机持久化烙印 (ubiquity-kvstore)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>☁️ Uninstall- &amp; New-iPhone-Proof iCloud KVS Token (ubiquity-kvstore)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>把唯一追踪码偷偷写进你的私人 iCloud 云空间——就算你卸载重装 App，甚至换了一台新 iPhone，它也能秒认出还是你。</span><span class="i18n-en">👉 <b>What it does: </b>Stores persistent tracking tokens in your private iCloud Key-Value Store that survive app uninstallation and restore on new iPhones.</span></div></div><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>📍 U1/U2芯片厘米级UWB空间雷达 (nearby-interaction)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>📍 U1/U2 Ultra-Wideband (UWB) Centimeter Spatial Radar (nearby-interaction)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>调用 iPhone 的 U1/U2 超宽带雷达芯片，以厘米级精度测算手机与周围其他设备的空间距离和方向。</span><span class="i18n-en">👉 <b>What it does: </b>Uses the U1/U2 Ultra-Wideband (UWB) chip to measure centimeter-precision distance and direction to nearby devices.</span></div></div><div class="text-small" style="margin-top:4px;"><span class="i18n-zh"><span class="text-muted">🔄 声明的后台常驻能力 (2 项):</span> <code>📏nearby-interaction (后台超宽带空间测距)</code> · <code>🔔remote-notification (静默推送唤醒后台)</code></span><span class="i18n-en"><span class="text-muted">🔄 Declared Background Modes (2):</span> <code>📏nearby-interaction (Background UWB spatial ranging)</code> · <code>🔔remote-notification (Silent push background wakeup)</code></span></div></td></tr><tr class="audit-row" data-score="31"><td class="text-end text-muted">5</td><td class="text-end"><b style="color:var(--orange)">31</b></td><td><b>CoinWallet</b><br><code class="mono">com.example.wallet</code> <span class="text-muted text-small">v3.1</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>1</b><br>嗅探: <b>25</b><br>插件: <b>0</b></span><span class="i18n-en">BG Modes: <b>1</b><br>Probes: <b>25</b><br>Plugins: <b>0</b></span></td><td><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>☁️ iCloud防卸载跨机持久化烙印 (ubiquity-kvstore)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>☁️ Uninstall- &amp; New-iPhone-Proof iCloud KVS Token (ubiquity-kvstore)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>把唯一追踪码偷偷写进你的私人 iCloud 云空间——就算你卸载重装 App，甚至换了一台新 iPhone，它也能秒认出还是你。</span><span class="i18n-en">👉 <b>What it does: </b>Stores persistent tracking tokens in your private iCloud Key-Value Store that survive app uninstallation and restore on new iPhones.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>🕵️ 查户口嗅探已安装应用 (25 个暗号)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>🕵️ Installed-App URL Scheme Probing (25 schemes)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>在后台挨个试探你手机里有没有装特定 App（如 <code>walletapp0, walletapp1, walletapp2, walletapp3, walletapp4, walletapp5, walletapp6, walletapp7 等共 25 个</code>），用来给你的资产、翻墙习惯或社交圈画像。</span><span class="i18n-en">👉 <b>What it does: </b>Silently probes whether specific apps (<code>walletapp0, walletapp1, walletapp2, walletapp3, walletapp4, walletapp5, walletapp6, walletapp7 (+17 more)</code>) are installed via <code>canOpenURL:</code> to profile your wealth, VPN usage, or social graph.</span></div></div><div class="text-small" style="margin-top:4px;"><span class="i18n-zh"><span class="text-muted">🔄 声明的后台常驻能力 (1 项):</span> <code>🔔remote-notification (静默推送唤醒后台)</code></span><span class="i18n-en"><span class="text-muted">🔄 Declared Background Modes (1):</span> <code>🔔remote-notification (Silent push background wakeup)</code></span></div></td></tr><tr class="audit-row" data-score="30"><td class="text-end text-muted">6</td><td class="text-end"><b style="color:var(--orange)">30</b></td><td><b>TripGo</b><br><code class="mono">com.example.tripgo</code> <span class="text-muted text-small">v5.0</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>0</b><br>嗅探: <b>40</b><br>插件: <b>0</b></span><span class="i18n-en">BG Modes: <b>0</b><br>Probes: <b>40</b><br>Plugins: <b>0</b></span></td><td><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>🕵️ 查户口嗅探已安装应用 (40 个暗号)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>🕵️ Installed-App URL Scheme Probing (40 schemes)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>在后台挨个试探你手机里有没有装特定 App（如 <code>carbrand0, carbrand1, carbrand2, carbrand3, carbrand4, carbrand5, carbrand6, carbrand7 等共 40 个</code>），用来给你的资产、翻墙习惯或社交圈画像。</span><span class="i18n-en">👉 <b>What it does: </b>Silently probes whether specific apps (<code>carbrand0, carbrand1, carbrand2, carbrand3, carbrand4, carbrand5, carbrand6, carbrand7 (+32 more)</code>) are installed via <code>canOpenURL:</code> to profile your wealth, VPN usage, or social graph.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>🎯 ATS 加密降级/豁免后门域 (2 个):</b> <code>open.e.189.cn, jspatch.com</code></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>🎯 ATS HTTPS-Downgrade Exception Domains (2):</b> <code>open.e.189.cn, jspatch.com</code></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>开发者专门向苹果申请对这些域名关闭强制 HTTPS 保护（允许明文传输或忽略证书校验），常暴露出第三方追踪 SDK、运营商取号接口或热更新后门。</span><span class="i18n-en">👉 <b>What it does: </b>Domains where the developer explicitly disabled Apple's strict HTTPS requirement — often exposing embedded attribution SDKs, carrier auth gateways, or legacy hot-patch backdoors.</span></div></div></td></tr><tr class="audit-row" data-score="28"><td class="text-end text-muted">7</td><td class="text-end"><b style="color:var(--muted-foreground)">28</b></td><td><b>StepUp</b><br><code class="mono">com.example.stepup</code> <span class="text-muted text-small">v4.2</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>2</b><br>嗅探: <b>0</b><br>插件: <b>0</b></span><span class="i18n-en">BG Modes: <b>2</b><br>Probes: <b>0</b><br>Plugins: <b>0</b></span></td><td><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>❤️ 锁屏后台静默实时推送健康数据 (healthkit-bg)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>❤️ Lock-Screen Real-Time HealthKit Background Delivery (healthkit-bg)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>锁屏状态下，只要你的步数、心率或睡眠数据更新，系统就会在后台静默唤醒它同步生理数据。</span><span class="i18n-en">👉 <b>What it does: </b>Silently wakes the app in the background while locked whenever HealthKit step, heart-rate, or sleep records change.</span></div></div><div class="text-small" style="margin-top:4px;"><span class="i18n-zh"><span class="text-muted">🔄 声明的后台常驻能力 (2 项):</span> <code>📍location (后台持续定位追踪)</code> · <code>🦷bluetooth-central (后台持续扫描周边蓝牙设备/信标)</code></span><span class="i18n-en"><span class="text-muted">🔄 Declared Background Modes (2):</span> <code>📍location (Continuous background GPS tracking)</code> · <code>🦷bluetooth-central (Background Bluetooth beacon scanning)</code></span></div></td></tr><tr class="audit-row" data-score="27"><td class="text-end text-muted">8</td><td class="text-end"><b style="color:var(--muted-foreground)">27</b></td><td><b>TuneBox</b><br><code class="mono">com.example.tunebox</code> <span class="text-muted text-small">v9.9</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>2</b><br>嗅探: <b>0</b><br>插件: <b>0</b></span><span class="i18n-en">BG Modes: <b>2</b><br>Probes: <b>0</b><br>Plugins: <b>0</b></span></td><td><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>⚠️ 全局关闭HTTPS强制加密 (NSAllowsArbitraryLoads)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>⚠️ Global Cleartext HTTP Allowed (NSAllowsArbitraryLoads)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>在配置中强行关闭了苹果默认的 HTTPS 强制加密保护（允许明文 HTTP 传输），在公共 Wi-Fi 或运营商基站下流量更容易被嗅探或劫持。</span><span class="i18n-en">👉 <b>What it does: </b>Explicitly disables Apple&#x27;s mandatory HTTPS App Transport Security, allowing cleartext HTTP traffic vulnerable to Wi-Fi or carrier sniffing.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>🔌 允许明文访问局域网与本地回环端口 (NSAllowsLocalNetworking)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>🔌 Local Loopback/LAN Cleartext Allowed (NSAllowsLocalNetworking)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>允许应用向本地回环端口 (127.0.0.1) 与家庭局域网设备发起明文 HTTP 通信或开启本地端口监听。</span><span class="i18n-en">👉 <b>What it does: </b>Allows cleartext HTTP traffic to local loopback (127.0.0.1) and LAN devices or local port listening.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>🚗 外接硬件与车机协议嗅探 (1 项):</b> <code>com.example.carlink</code></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>🚗 External Hardware &amp; Automotive Protocol Probes (1):</b> <code>com.example.carlink</code></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>通过声明宝马/福特车机、Meta Ray-Ban 智能眼镜或硬件钱包底层通信协议，直接与外设握手并识别你的座驾品牌或高价值硬件资产。</span><span class="i18n-en">👉 <b>What it does: </b>Declares automotive head-unit (BMW/Ford), smart-glasses (Meta Ray-Ban), or hardware wallet protocols to interface with and fingerprint your physical hardware assets.</span></div></div><div class="text-small" style="margin-top:4px;"><span class="i18n-zh"><span class="text-muted">🔄 声明的后台常驻能力 (2 项):</span> <code>🔊audio (后台音频播放/无声保活/录音)</code> · <code>🔌external-accessory (后台持续通信外接硬件配件)</code></span><span class="i18n-en"><span class="text-muted">🔄 Declared Background Modes (2):</span> <code>🔊audio (Background audio / silent keep-alive / mic)</code> · <code>🔌external-accessory (Background hardware accessory comm)</code></span></div></td></tr><tr class="audit-row" data-score="26"><td class="text-end text-muted">9</td><td class="text-end"><b style="color:var(--muted-foreground)">26</b></td><td><b>TunnelX</b><br><code class="mono">com.example.tunnelx</code> <span class="text-muted text-small">v2.6</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>0</b><br>嗅探: <b>0</b><br>插件: <b>0</b></span><span class="i18n-en">BG Modes: <b>0</b><br>Probes: <b>0</b><br>Plugins: <b>0</b></span></td><td><div><span class="i18n-zh"><span class="evi evi-cap">【机制实锤】</span> <b>🛡️ 底层网络扩展与虚拟网卡控制 (networkextension)</b></span><span class="i18n-en"><span class="evi evi-cap">[CAPABILITY]</span> <b>🛡️ Kernel Network Extension &amp; Virtual Tunnel Control (networkextension)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>在系统底层注册虚拟网卡或流量隧道，具备接管、分流系统网络流量的底层能力。</span><span class="i18n-en">👉 <b>What it does: </b>Registers system-level virtual network interfaces or tunnels capable of routing or inspecting device traffic.</span></div></div><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>📡 局域网 mDNS/Bonjour 广播与嗅探探针 (1 项):</b> <code>_tunnelx._tcp</code></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>📡 LAN mDNS/Bonjour Broadcast &amp; Discovery Probes (1):</b> <code>_tunnelx._tcp</code></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>在所连 Wi-Fi 局域网内主动广播或嗅探特定服务（如代理软件、同类节点、智能家电或运营商网关），在公共或公司 Wi-Fi 下可能暴露本机安装的软件。</span><span class="i18n-en">👉 <b>What it does: </b>Broadcasts or scans for specific mDNS services on your local Wi-Fi (e.g., proxy nodes, peer apps, smart appliances), potentially exposing installed software to LAN administrators.</span></div></div></td></tr><tr class="audit-row" data-score="25"><td class="text-end text-muted">10</td><td class="text-end"><b style="color:var(--muted-foreground)">25</b></td><td><b>SafeNotes</b><br><code class="mono">com.example.safenotes</code> <span class="text-muted text-small">v2.0</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>0</b><br>嗅探: <b>0</b><br>插件: <b>0</b></span><span class="i18n-en">BG Modes: <b>0</b><br>Probes: <b>0</b><br>Plugins: <b>0</b></span></td><td><div><span class="i18n-zh"><span class="evi evi-seen">【实锤】</span> <b>📂 免FaceID暴露USB/Wi-Fi沙盒目录 (3 个裸露文件)</b></span><span class="i18n-en"><span class="evi evi-seen">[VERIFIED]</span> <b>📂 Unauthenticated USB/Wi-Fi Sandbox Exposure (3 exposed files)</b></span><div class="text-small text-muted" style="margin:1px 0 6px 18px;"><span class="i18n-zh">👉 <b>能干什么：</b>应用把内部文档目录直接暴露在 USB 与局域网 Wi-Fi 同步接口下，插上电脑无需解锁 FaceID 就能直接拷走里面的文件。</span><span class="i18n-en">👉 <b>What it does: </b>Exposes the app&#x27;s /Documents directory over USB and local Wi-Fi sync without requiring FaceID or app unlock.</span></div></div></td></tr><tr class="audit-row" data-score="0"><td class="text-end text-muted">11</td><td class="text-end"><b style="color:var(--muted-foreground)">0</b></td><td><b>TonPocket</b><br><code class="mono">com.example.tonpocket</code> <span class="text-muted text-small">v1.4</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>0</b><br>嗅探: <b>0</b><br>插件: <b>0</b></span><span class="i18n-en">BG Modes: <b>0</b><br>Probes: <b>0</b><br>Plugins: <b>0</b></span></td><td><span class="text-muted"><span class="i18n-zh">零特权越界 (Clean)</span><span class="i18n-en">Zero Privileged Overreach (Clean)</span></span></td></tr><tr class="audit-row" data-score="0"><td class="text-end text-muted">12</td><td class="text-end"><b style="color:var(--muted-foreground)">0</b></td><td><b>PlainReader</b><br><code class="mono">com.example.plainreader</code> <span class="text-muted text-small">v1.0</span></td><td class="text-nowrap"><span class="i18n-zh">后台: <b>0</b><br>嗅探: <b>0</b><br>插件: <b>0</b></span><span class="i18n-en">BG Modes: <b>0</b><br>Probes: <b>0</b><br>Plugins: <b>0</b></span></td><td><span class="text-muted"><span class="i18n-zh">零特权越界 (Clean)</span><span class="i18n-en">Zero Privileged Overreach (Clean)</span></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 2: 5-LAYER PERSISTENT IDENTITY -->
+  <div id="p-identity" role="tabpanel" aria-labelledby="tab-identity" hidden>
+    <h3>
+      <span class="i18n-zh">🧬 五层持久设备身份链与穿 VPN 路径分析</span>
+      <span class="i18n-en">🧬 The 5-Layer Persistent Device Identity &amp; VPN-Bypass Chain</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">为什么在 iOS 上「关闭广告追踪 (IDFA) + 开启 VPN + 卸载重装 App」依然无法阻止国内大厂与风控 SDK 精准识别同一台物理手机？以下为本机实测检出的五层硬件/系统级锚点（全量列出）：</p>
+    <p class="text-muted text-small i18n-en">Why does disabling IDFA, turning on a VPN, and reinstalling an app still fail to prevent cross-app device tracking on stock iOS? Below are the 5 hardware/OS-level persistence layers detected on this device:</p>
+
+    <div class="card"><div class="card-body">
+      <h4>
+        <span class="i18n-zh">第 1 层：跨设备、防恢复出厂的「iCloud 云端隐藏烙印」（全量检出 3 款） <span class="evi evi-seen">【实锤】</span></span>
+        <span class="i18n-en">Layer 1: Uninstall- &amp; New-iPhone-Proof iCloud KVS Tokens (3 Apps) <span class="evi evi-seen">[VERIFIED]</span></span>
+      </h4>
+      <p class="text-small i18n-zh">持有 <code>com.apple.developer.ubiquity-kvstore-identifier</code> 签名的应用可将唯一设备 Token 写入用户私人 iCloud KVS 云空间。<b>即便卸载重装 App，甚至购买新 iPhone 登录同一 Apple ID，该追踪烙印也会在后台秒级同步恢复。</b></p>
+      <p class="text-small i18n-en">Apps holding <code>com.apple.developer.ubiquity-kvstore-identifier</code> write persistent tracking tokens into your private iCloud Key-Value Store. <b>Even if you uninstall the app or migrate to a brand-new iPhone on the same Apple ID, the tracking token automatically syncs back.</b></p>
+      <p class="text-small"><b><span class="i18n-zh">本机检出全部应用：</span><span class="i18n-en">All Detected Apps: </span></b> <code>PayNow</code>, <code>TeamDesk</code>, <code>CoinWallet</code></p>
+    </div></div>
+
+    <div class="card"><div class="card-body">
+      <h4>
+        <span class="i18n-zh">第 2 层：防卸载的「同厂商钥匙串持久化 (`keychain-access-groups`)」（全量检出 1 个跨应用钥匙串前缀） <span class="evi evi-seen">【实锤】</span></span>
+        <span class="i18n-en">Layer 2: Uninstall-Proof Shared Keychain Groups (1 Shared Prefixes) <span class="evi evi-seen">[VERIFIED]</span></span>
+      </h4>
+      <p class="text-small i18n-zh">iOS 系统级特性：应用写入 Keychain 的数据在<b>卸载 App 后依然永久保留在系统钥匙串数据库中</b>；且同一开发者 Team ID 下的多款应用可共享同一 Keychain 组。重装或安装同系新 App 时瞬间恢复老设备身份 ID。</p>
+      <p class="text-small i18n-en">On iOS, Keychain entries <b>persist permanently even after the app is uninstalled</b>, and apps signed by the same developer Team ID can share Keychain groups to immediately re-link your device identity upon reinstall.</p>
+    </div></div>
+
+    <div class="card"><div class="card-body">
+      <h4>
+        <span class="i18n-zh">第 3 层：跨应用沙盒串通池 (`com.apple.security.application-groups`)（全量检出 1 个多应用共享池） <span class="evi evi-seen">【实锤】</span></span>
+        <span class="i18n-en">Layer 3: Cross-App Sandbox Collusion Pools (1 Multi-App Groups) <span class="evi evi-seen">[VERIFIED]</span></span>
+      </h4>
+      <p class="text-small i18n-zh">只要同一集团矩阵（如阿里系、腾讯系、字节系、Google 系、Meta 系）中有<b>任意 1 款</b>应用留在手机上，共享容器 <code>group.*</code> 内的设备指纹与会话文件就不会被系统清理。</p>
+      <p class="text-small i18n-en">As long as <b>any single sister app</b> from the same corporate family remains installed on your iPhone, shared <code>group.*</code> container files and device DNA fingerprints remain intact across uninstalls.</p>
+    </div></div>
+
+    <div class="card"><div class="card-body">
+      <h4>
+        <span class="i18n-zh">第 4 层：写死运营商一键取号网关的「蜂窝取号通道」（全量检出 3 款） <span class="evi evi-seen">【实锤】</span></span>
+        <span class="i18n-en">Layer 4: Hardcoded Carrier Phone-Number Auth Gateways (3 Apps) <span class="evi evi-seen">[VERIFIED]</span></span>
+      </h4>
+      <p class="text-small i18n-zh">这些应用在 ATS 配置里写死了三大运营商的一键登录 / 取号网关（<code>cmpassport.com</code> / <code>wostore.cn</code> / <code>id6.me</code> / <code>189.cn</code>），说明接入了「本机号码一键登录」。这类认证走蜂窝数据，由运营商按 SIM 卡直接识别出你的手机号。</p>
+      <p class="text-small i18n-en">These apps hardcode carrier one-tap-login / phone-number gateways (<code>cmpassport.com</code>, <code>wostore.cn</code>, <code>id6.me</code>, <code>189.cn</code>) in their ATS configuration, i.e. they integrate carrier phone-number authentication, which runs over cellular data and lets the carrier identify your number from the SIM.</p>
+      <p class="text-small"><b><span class="i18n-zh">本机检出全部应用：</span><span class="i18n-en">All Detected Apps: </span></b> <code>PayNow</code>, <code>ShopMall</code>, <code>TripGo</code></p>
+    </div></div>
+
+    <div class="card"><div class="card-body">
+      <h4>
+        <span class="i18n-zh">第 5 层：无视定位开关的「物理空间锚点」（Wi-Fi BSSID 钩子 2 款 / 局域网多播探测） <span class="evi evi-cap">【机制实锤】</span></span>
+        <span class="i18n-en">Layer 5: GPS-Free Physical Location Anchors (2 `HotspotHelper` Apps) <span class="evi evi-cap">[CAPABILITY]</span></span>
+      </h4>
+      <p class="text-small i18n-zh">即使关闭 GPS 定位权限，持有 <code>HotspotHelper</code> 的应用（<code>ChatBox</code>, <code>PayNow</code>）也能在系统扫描 Wi-Fi 时获取周边路由器硬件 MAC 地址（BSSID），结合云端 Wi-Fi 地理库即可反推精确到楼层的物理位置。</p>
+      <p class="text-small i18n-en">Even with GPS permission denied, apps holding <code>HotspotHelper</code> (<code>ChatBox</code>, <code>PayNow</code>) receive nearby Wi-Fi router hardware MAC addresses (BSSIDs) whenever iOS scans Wi-Fi networks, enabling floor-level physical geolocation.</p>
+    </div></div>
+  </div>
+
+  <!-- TAB 3: URL SCHEME PROBERS & HIJACKING -->
+  <div id="p-probers" role="tabpanel" aria-labelledby="tab-probers" hidden>
+    <h3>
+      <span class="i18n-zh">⚔️ URL Scheme 恶意抢注与撞车劫持 (`CFBundleURLSchemes`)（共 2 组冲突）</span>
+      <span class="i18n-en">⚔️ URL Scheme Squatting &amp; Hijack Collisions (`CFBundleURLSchemes`) (2 Collisions)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">iOS 的自定义 URL Scheme（如 <code>tc://</code>、<code>prefs://</code>）缺乏全局所有权校验：当多个 App 同时注册同一个 Scheme 时，后安装的 App 可能劫持原本发往目标钱包或系统导航的跳转请求（甚至截获 OAuth 回调与 TON Connect 签名请求）：</p>
+    <p class="text-muted text-small i18n-en">Custom URL schemes on iOS lack global ownership verification. When multiple apps register the exact same scheme (e.g. <code>tc://</code> TON Connect, <code>com.apple.maps.action://</code>, or <code>prefs://</code>), another installed app can intercept deep-link callbacks and wallet connection requests:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">冲突的 URL Scheme 协议头</span><span class="i18n-en">Colliding URL Scheme</span></th>
+            <th class="text-end"><span class="i18n-zh">抢注应用数</span><span class="i18n-en">Apps Count</span></th>
+            <th><span class="i18n-zh">同时注册该协议头的所有本机应用（存在跨应用拦截风险）</span><span class="i18n-en">Installed Apps Registering This Scheme (Deep-Link Interception Risk)</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono"><b style="color:var(--red)"><code>prefs://</code></b></td><td class="text-end"><b>4</b></td><td><b>ChatBox</b> (<code>com.example.chat</code>)、<b>PayNow</b> (<code>com.example.pay</code>)、<b>ShopMall</b> (<code>com.example.shop</code>)、<b>TripGo</b> (<code>com.example.tripgo</code>)</td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】CFBundleURLSchemes 撞车抢注</span><span class="i18n-en">[VERIFIED] URL Scheme Hijack Collision</span></span></td></tr><tr><td class="mono"><b style="color:var(--red)"><code>tc://</code></b></td><td class="text-end"><b>2</b></td><td><b>CoinWallet</b> (<code>com.example.wallet</code>)、<b>TonPocket</b> (<code>com.example.tonpocket</code>)</td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】CFBundleURLSchemes 撞车抢注</span><span class="i18n-en">[VERIFIED] URL Scheme Hijack Collision</span></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:28px;">
+      <span class="i18n-zh">🕵️ URL Scheme “查户口式”已安装应用嗅探榜 (`LSApplicationQueriesSchemes`)（共 4 款）</span>
+      <span class="i18n-en">🕵️ Installed-App URL Scheme Probing (`LSApplicationQueriesSchemes`) (4 Apps)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">iOS 9+ 规定应用必须在 <code>Info.plist</code> 的 <code>LSApplicationQueriesSchemes</code> 中静态声明要探测的 URL Scheme，才能调用 <code>canOpenURL:</code> 判断用户是否安装了目标软件（如小火箭 <code>shadowrocket</code>、海外银行、加密钱包、豪车 App）。此表为 100% 静态实锤证据：</p>
+    <p class="text-muted text-small i18n-en">Since iOS 9, apps must statically declare every URL scheme they wish to probe via <code>canOpenURL:</code> inside <code>Info.plist</code> (<code>LSApplicationQueriesSchemes</code>). This table provides 100% verified static proof of which apps each developer is probing for:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">应用名称 / Bundle ID</span><span class="i18n-en">App Name / Bundle ID</span></th>
+            <th class="text-end"><span class="i18n-zh">嗅探暗号数量</span><span class="i18n-en">Queried Schemes</span></th>
+            <th><span class="i18n-zh">声明探测的全部 URL Schemes 清单</span><span class="i18n-en">Full List of Declared URL Schemes</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><b>ChatBox</b><br><code class="mono">com.example.chat</code></td><td class="text-end"><b>60</b></td><td><code>exampleapp0</code>, <code>exampleapp1</code>, <code>exampleapp2</code>, <code>exampleapp3</code>, <code>exampleapp4</code>, <code>exampleapp5</code>, <code>exampleapp6</code>, <code>exampleapp7</code>, <code>exampleapp8</code>, <code>exampleapp9</code>, <code>exampleapp10</code>, <code>exampleapp11</code>, <code>exampleapp12</code>, <code>exampleapp13</code>, <code>exampleapp14</code>, <code>exampleapp15</code>, <code>exampleapp16</code>, <code>exampleapp17</code>, <code>exampleapp18</code>, <code>exampleapp19</code>, <code>exampleapp20</code>, <code>exampleapp21</code>, <code>exampleapp22</code>, <code>exampleapp23</code>, <code>exampleapp24</code>, <code>exampleapp25</code>, <code>exampleapp26</code>, <code>exampleapp27</code>, <code>exampleapp28</code>, <code>exampleapp29</code>, <code>exampleapp30</code>, <code>exampleapp31</code>, <code>exampleapp32</code>, <code>exampleapp33</code>, <code>exampleapp34</code>, <code>exampleapp35</code>, <code>exampleapp36</code>, <code>exampleapp37</code>, <code>exampleapp38</code>, <code>exampleapp39</code>, <code>exampleapp40</code>, <code>exampleapp41</code>, <code>exampleapp42</code>, <code>exampleapp43</code>, <code>exampleapp44</code>, <code>exampleapp45</code>, <code>exampleapp46</code>, <code>exampleapp47</code>, <code>exampleapp48</code>, <code>exampleapp49</code>, <code>exampleapp50</code>, <code>exampleapp51</code>, <code>exampleapp52</code>, <code>exampleapp53</code>, <code>exampleapp54</code>, <code>exampleapp55</code>, <code>exampleapp56</code>, <code>exampleapp57</code>, <code>exampleapp58</code>, <code>exampleapp59</code></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】LSApplicationQueriesSchemes</span><span class="i18n-en">[VERIFIED] LSApplicationQueriesSchemes</span></span></td></tr><tr><td><b>TripGo</b><br><code class="mono">com.example.tripgo</code></td><td class="text-end"><b>40</b></td><td><code>carbrand0</code>, <code>carbrand1</code>, <code>carbrand2</code>, <code>carbrand3</code>, <code>carbrand4</code>, <code>carbrand5</code>, <code>carbrand6</code>, <code>carbrand7</code>, <code>carbrand8</code>, <code>carbrand9</code>, <code>carbrand10</code>, <code>carbrand11</code>, <code>carbrand12</code>, <code>carbrand13</code>, <code>carbrand14</code>, <code>carbrand15</code>, <code>carbrand16</code>, <code>carbrand17</code>, <code>carbrand18</code>, <code>carbrand19</code>, <code>carbrand20</code>, <code>carbrand21</code>, <code>carbrand22</code>, <code>carbrand23</code>, <code>carbrand24</code>, <code>carbrand25</code>, <code>carbrand26</code>, <code>carbrand27</code>, <code>carbrand28</code>, <code>carbrand29</code>, <code>carbrand30</code>, <code>carbrand31</code>, <code>carbrand32</code>, <code>carbrand33</code>, <code>carbrand34</code>, <code>carbrand35</code>, <code>carbrand36</code>, <code>carbrand37</code>, <code>carbrand38</code>, <code>carbrand39</code></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】LSApplicationQueriesSchemes</span><span class="i18n-en">[VERIFIED] LSApplicationQueriesSchemes</span></span></td></tr><tr><td><b>PayNow</b><br><code class="mono">com.example.pay</code></td><td class="text-end"><b>30</b></td><td><code>bankapp0</code>, <code>bankapp1</code>, <code>bankapp2</code>, <code>bankapp3</code>, <code>bankapp4</code>, <code>bankapp5</code>, <code>bankapp6</code>, <code>bankapp7</code>, <code>bankapp8</code>, <code>bankapp9</code>, <code>bankapp10</code>, <code>bankapp11</code>, <code>bankapp12</code>, <code>bankapp13</code>, <code>bankapp14</code>, <code>bankapp15</code>, <code>bankapp16</code>, <code>bankapp17</code>, <code>bankapp18</code>, <code>bankapp19</code>, <code>bankapp20</code>, <code>bankapp21</code>, <code>bankapp22</code>, <code>bankapp23</code>, <code>bankapp24</code>, <code>bankapp25</code>, <code>bankapp26</code>, <code>bankapp27</code>, <code>bankapp28</code>, <code>bankapp29</code></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】LSApplicationQueriesSchemes</span><span class="i18n-en">[VERIFIED] LSApplicationQueriesSchemes</span></span></td></tr><tr><td><b>CoinWallet</b><br><code class="mono">com.example.wallet</code></td><td class="text-end"><b>25</b></td><td><code>walletapp0</code>, <code>walletapp1</code>, <code>walletapp2</code>, <code>walletapp3</code>, <code>walletapp4</code>, <code>walletapp5</code>, <code>walletapp6</code>, <code>walletapp7</code>, <code>walletapp8</code>, <code>walletapp9</code>, <code>walletapp10</code>, <code>walletapp11</code>, <code>walletapp12</code>, <code>walletapp13</code>, <code>walletapp14</code>, <code>walletapp15</code>, <code>walletapp16</code>, <code>walletapp17</code>, <code>walletapp18</code>, <code>walletapp19</code>, <code>walletapp20</code>, <code>walletapp21</code>, <code>walletapp22</code>, <code>walletapp23</code>, <code>walletapp24</code></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】LSApplicationQueriesSchemes</span><span class="i18n-en">[VERIFIED] LSApplicationQueriesSchemes</span></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 4: ATS EXCEPTIONS & LAN / CAR PROBES -->
+  <div id="p-ats" role="tabpanel" aria-labelledby="tab-ats" hidden>
+    <h3>
+      <span class="i18n-zh">🌐 ATS 加密降级与硬编码隐秘端点 (`NSExceptionDomains`)</span>
+      <span class="i18n-en">🌐 ATS HTTPS-Downgrade Exceptions &amp; Hardcoded Endpoints (`NSExceptionDomains`)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">苹果强制要求 App 默认使用安全 HTTPS (App Transport Security)。如果开发者在 <code>Info.plist</code> 中专门为特定域名配置了 <code>NSExceptionDomains</code>（允许明文 HTTP 或忽略证书校验），往往直接暴露出其底层接入的<b>第三方设备指纹库（如数字联盟 <code>shuzilm.cn</code>）、运营商取号网关（<code>id6.me</code> / <code>wo.cn</code>）、历史遗留热更新后门（<code>jspatch.com</code>）或商业广告监测网（秒针 <code>miaozhen.com</code>）</b>：</p>
+    <p class="text-muted text-small i18n-en">Apple enforces HTTPS by default via App Transport Security (ATS). When developers explicitly declare <code>NSExceptionDomains</code> in <code>Info.plist</code> to allow cleartext HTTP or custom trust, they inadvertently reveal embedded <b>device-DNA trackers (<code>shuzilm.cn</code>), carrier auth gateways (<code>id6.me</code>, <code>wo.cn</code>), legacy hot-patch backdoors (<code>jspatch.com</code>), and ad-tech networks (<code>miaozhen.com</code>)</b>:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">应用名称 / Bundle ID</span><span class="i18n-en">App Name / Bundle ID</span></th>
+            <th class="text-end"><span class="i18n-zh">豁免域名数</span><span class="i18n-en">Domains Count</span></th>
+            <th><span class="i18n-zh">静态抽取的 NSExceptionDomains 域名清单</span><span class="i18n-en">Statically Extracted NSExceptionDomains</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><b>PayNow</b><br><code class="mono">com.example.pay</code></td><td class="text-end"><b>3</b></td><td><code>cmpassport.com</code> <code>id6.me</code> <code>umeng.com</code></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】Info.plist 静态抽取</span><span class="i18n-en">[VERIFIED] Info.plist Static Extraction</span></span></td></tr><tr><td><b>ShopMall</b><br><code class="mono">com.example.shop</code></td><td class="text-end"><b>3</b></td><td><code>wostore.cn</code> <code>tanx.com</code> <code>miaozhen.com</code></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】Info.plist 静态抽取</span><span class="i18n-en">[VERIFIED] Info.plist Static Extraction</span></span></td></tr><tr><td><b>TripGo</b><br><code class="mono">com.example.tripgo</code></td><td class="text-end"><b>2</b></td><td><code>open.e.189.cn</code> <code>jspatch.com</code></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】Info.plist 静态抽取</span><span class="i18n-en">[VERIFIED] Info.plist Static Extraction</span></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:28px;">
+      <span class="i18n-zh">📡 局域网 mDNS/Bonjour 广播探针与车机/外设协议指纹（共 3 款）</span>
+      <span class="i18n-en">📡 LAN mDNS/Bonjour Probes (`NSBonjourServices`) &amp; Automotive/Hardware Protocols (3 Apps)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">应用通过 <code>NSBonjourServices</code> 在当前 Wi-Fi 下扫描或广播特定局域网服务（例如 <code>_shadowrocket._tcp</code> 会在办公室/公共 Wi-Fi 下向网管暴露本机安装了小火箭；<code>_x5_gw._tcp</code> 探测家庭网关），或通过 <code>UISupportedExternalAccessoryProtocols</code> 识别车主座驾（宝马 <code>com.bmw.a4a1</code> / 福特 <code>com.ford.sync.prot0</code>）与智能穿戴（Meta 眼镜 <code>com.facebook.stella</code>）：</p>
+    <p class="text-muted text-small i18n-en">Apps declare <code>NSBonjourServices</code> to broadcast or scan for local Wi-Fi mDNS services (e.g., <code>_shadowrocket._tcp</code> advertising VPN installation on office Wi-Fi) and <code>UISupportedExternalAccessoryProtocols</code> to interface with BMW/Ford head-units or Meta Ray-Ban smart glasses:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">应用名称 / Bundle ID</span><span class="i18n-en">App Name / Bundle ID</span></th>
+            <th><span class="i18n-zh">局域网 Bonjour 服务探针 (`NSBonjourServices`)</span><span class="i18n-en">LAN Bonjour Services (`NSBonjourServices`)</span></th>
+            <th><span class="i18n-zh">外接硬件与车机协议 (`UISupportedExternalAccessoryProtocols`)</span><span class="i18n-en">Hardware / Car Protocols (`UISupportedExternalAccessoryProtocols`)</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><b>ChatBox</b><br><code class="mono">com.example.chat</code></td><td><code>_chatbox-sync._tcp</code></td><td><span class="text-muted">—</span></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】NSBonjour / ExternalAccessory</span><span class="i18n-en">[VERIFIED] NSBonjour / ExternalAccessory</span></span></td></tr><tr><td><b>TuneBox</b><br><code class="mono">com.example.tunebox</code></td><td><span class="text-muted">—</span></td><td><code>com.example.carlink</code></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】NSBonjour / ExternalAccessory</span><span class="i18n-en">[VERIFIED] NSBonjour / ExternalAccessory</span></span></td></tr><tr><td><b>TunnelX</b><br><code class="mono">com.example.tunnelx</code></td><td><code>_tunnelx._tcp</code></td><td><span class="text-muted">—</span></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】NSBonjour / ExternalAccessory</span><span class="i18n-en">[VERIFIED] NSBonjour / ExternalAccessory</span></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 5: COLLUSION, SANDBOX & AFC ROOT -->
+  <div id="p-collusion" role="tabpanel" aria-labelledby="tab-collusion" hidden>
+    <h3>
+      <span class="i18n-zh">🔗 跨应用共享容器串通池 (`com.apple.security.application-groups`)</span>
+      <span class="i18n-en">🔗 Cross-App Shared Storage Pools (`com.apple.security.application-groups`)</span>
+    </h3>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">共享容器 ID (App Group)</span><span class="i18n-en">Shared Container ID (App Group)</span></th>
+            <th class="text-end"><span class="i18n-zh">共谋应用数</span><span class="i18n-en">Apps Count</span></th>
+            <th><span class="i18n-zh">共享该底层读写池的应用列表</span><span class="i18n-en">Apps Sharing This Read/Write Pool</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono"><code>group.com.example.family</code></td><td class="text-end"><b>2</b></td><td><b>ChatBox</b> (<code>com.example.chat</code>)、<b>ShopMall</b> (<code>com.example.shop</code>)</td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】容器互通</span><span class="i18n-en">[VERIFIED] Shared Container</span></span> / <span class="evi evi-inf"><span class="i18n-zh">【推断】指纹共享</span><span class="i18n-en">[INFERRED] ID Sync</span></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:28px;">
+      <span class="i18n-zh">💣 免 FaceID 通过 USB / 局域网 Wi-Fi 直接裸露的沙盒目录 (`HouseArrest`)</span>
+      <span class="i18n-en">💣 Unauthenticated USB / Wi-Fi Sandbox Exposure (`HouseArrest`)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">以下应用在 <code>Info.plist</code> 中开启了 <code>UIFileSharingEnabled</code> 或 <code>LSSupportsOpeningDocumentsInPlace</code>。任何曾点击过「信任此电脑」的主机（或开启 Wi-Fi 同步后的同一局域网主机）无需解锁 App 或验证 FaceID，即可直接通过苹果原生 <code>HouseArrest</code> 协议读取甚至拷走其 <code>/Documents</code> 容器内的全部文件：</p>
+    <p class="text-muted text-small i18n-en">These apps enabled <code>UIFileSharingEnabled</code> or <code>LSSupportsOpeningDocumentsInPlace</code>. Any paired computer over USB (or local Wi-Fi sync) can directly list and copy all files inside their <code>/Documents</code> sandbox container via Apple's <code>HouseArrest</code> service without FaceID:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">应用名称 / Bundle ID</span><span class="i18n-en">App Name / Bundle ID</span></th>
+            <th class="text-end"><span class="i18n-zh">裸露文件/目录数</span><span class="i18n-en">Exposed Entries</span></th>
+            <th><span class="i18n-zh">实测可直接枚举的顶层文件样本 </span><span class="i18n-en">Top-Level Exposed Files </span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><b>SafeNotes</b><br><code class="mono">com.example.safenotes</code></td><td class="text-end"><b style="color:var(--red)">3</b></td><td><code>vault.kdbx</code>, <code>bank-statement.pdf</code>, <code>id-card-scan.jpg</code></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】HouseArrest 免密枚举</span><span class="i18n-en">[VERIFIED] Unauthenticated HouseArrest</span></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:28px;">
+      <span class="i18n-zh">💽 无需开发者模式即可通过 USB/Wi-Fi 免密拖库的系统级 AFC 索引数据库 (`AfcService`)</span>
+      <span class="i18n-en">💽 System-Level AFC Root Databases Exposed Without Developer Mode (`AfcService`)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">即使关闭了「开发者模式」，任何获得 USB 配对信任的设备均可通过苹果默认开启的 <code>com.apple.afc</code> 媒体同步通道直接读取以下系统核心 SQLite 数据库（包含全机照片的 AI 实况文本 OCR 识别结果、人脸聚类与完整历史经纬度轨迹）：</p>
+    <p class="text-muted text-small i18n-en">Even with Developer Mode turned off, any paired host can use Apple's default <code>com.apple.afc</code> service to directly download these system SQLite databases containing AI Live Text OCR indexes of your screenshots, face clusters, and historical GPS coordinates:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">暴露的 AFC 根目录路径</span><span class="i18n-en">Exposed AFC Root Path</span></th>
+            <th><span class="i18n-zh">包含的高危个人隐私数据内容</span><span class="i18n-en">Sensitive Forensic Contents</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 6: KERNEL .IPS BLACK-BOX DIAGNOSTICS -->
+  <div id="p-ips" role="tabpanel" aria-labelledby="tab-ips" hidden>
+    <h3>
+      <span class="i18n-zh">💥「闪存寿命杀手」：24 小时内写盘超过系统给它的限额 (`.ips bug_type 145`)</span>
+      <span class="i18n-en">💥 Flash-Write Monsters: Over Their Own 24-Hour Disk-Write Limit (`.ips bug_type 145`)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">iOS 给每个进程设了 24 小时写盘限额，不同进程的限额不同（见每行）。一旦超过，系统就生成一份 <code>diskwrites_resource.ips</code>。下表按「超出自己限额多少倍」排序，写入量是报告里记录的真实数据：</p>
+    <p class="text-muted text-small i18n-en">iOS gives every process its own 24-hour disk-write limit, and limits differ between processes (see each row). Crossing it produces a <code>diskwrites_resource.ips</code> report. Ranked by how many times over its own limit each process went; the amounts are the real figures recorded in the reports:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">进程名称 / Bundle ID</span><span class="i18n-en">Process / Bundle ID</span></th>
+            <th class="text-end"><span class="i18n-zh">超标次数</span><span class="i18n-en">Violations</span></th>
+            <th class="text-end"><span class="i18n-zh">超出自己限额的倍数</span><span class="i18n-en">Times Over Own Limit</span></th>
+            <th><span class="i18n-zh">报告原文</span><span class="i18n-en">Report Text</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><b>PayNow</b><br><code class="mono">com.example.pay</code></td><td class="text-end"><b style="color:var(--red)">2x</b></td><td class="text-end"><b style="color:var(--red)">12.0×</b><br><span class="text-small"><span class="i18n-zh">最严重一次 2.0 小时写了 1.07 GB（平均 149 KB/s，是自己限额 12 KB/s 的 12.0 倍）</span><span class="i18n-en">Worst report: 1.07 GB in 2.0 h (149 KB/s average, 12.0× its own 12 KB/s limit)</span></span></td><td class="mono text-small">1073.74 MB of file backed memory dirtied over 7200 seconds (149.13 KB per second average), exceeding limit of 12.43 KB per second over 86400 seconds</td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】.ips bug_type 145</span><span class="i18n-en">[VERIFIED] .ips bug_type 145</span></span></td></tr><tr><td><b>ChatBox</b><br><code class="mono">com.example.chat</code></td><td class="text-end"><b style="color:var(--red)">1x</b></td><td class="text-end"><b style="color:var(--red)">1.7×</b><br><span class="text-small"><span class="i18n-zh">最严重一次 13.9 小时写了 4.29 GB（平均 86 KB/s，是自己限额 50 KB/s 的 1.7 倍）</span><span class="i18n-en">Worst report: 4.29 GB in 13.9 h (86 KB/s average, 1.7× its own 50 KB/s limit)</span></span></td><td class="mono text-small">4294.97 MB of file backed memory dirtied over 50000 seconds (85.90 KB per second average), exceeding limit of 49.71 KB per second over 86400 seconds</td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】.ips bug_type 145</span><span class="i18n-en">[VERIFIED] .ips bug_type 145</span></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:28px;">
+      <span class="i18n-zh">⚡ 后台「算力与发热刺客」：触发内核 CPU 断头台处决 (`.ips bug_type 202`)</span>
+      <span class="i18n-en">⚡ Background CPU &amp; Wakeup Guillotine Kills (`.ips bug_type 202`)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">当应用或系统分析守护进程在后台持续跑满 CPU（如 180 秒内平均占用超过 50% 或 15 秒内超过 95%）时，会被内核记录进 <code>cpu_resource.ips</code>：</p>
+    <p class="text-muted text-small i18n-en">Logged when a background process or analytics daemon sustains >50% CPU over 180s (or >95% over 15s):</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">进程名称 / Bundle ID</span><span class="i18n-en">Process / Bundle ID</span></th>
+            <th class="text-end"><span class="i18n-zh">处决/告警次数</span><span class="i18n-en">Kills / Alerts</span></th>
+            <th><span class="i18n-zh">内核实测 CPU 持续占用详情</span><span class="i18n-en">Kernel CPU Usage Telemetry</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><b>ShopMall</b><br><code class="mono">com.example.shop</code></td><td class="text-end"><b style="color:var(--orange)">1x</b></td><td class="mono text-small">90 seconds cpu time over 166 seconds (54% cpu average), exceeding limit of 50% cpu over 180 seconds</td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】.ips bug_type 202</span><span class="i18n-en">[VERIFIED] .ips bug_type 202</span></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:28px;">
+      <span class="i18n-zh">🔬 免越狱剥离：从崩溃符号表 (`usedImages`) 提取内嵌商业风控与私有协议 SDK</span>
+      <span class="i18n-en">🔬 Non-Jailbroken Binary SDK Extraction via Crash Symbol Tables (`usedImages`)</span>
+    </h3>
+    <p class="text-muted text-small i18n-zh">虽然未越狱 iOS 上的二进制受 FairPlay 加密，但每当应用或它的后台推送插件 (`NotificationServiceExtension`) 发生崩溃或资源越界时，iOS 内核会在 <code>.ips</code> 报告的 <code>usedImages</code> 中完整列出其内存加载的所有私有动态库（如渣打银行后台推送插件内嵌的 <code>TMXBehavioSec</code> 行为生物识别键盘/滑动监听库、微信的 <code>mmcronet</code>/<code>matrixreport</code>、淘宝的 <code>AMNet</code>、华为运动健康的 51 个鸿蒙移植动态库）：</p>
+    <p class="text-muted text-small i18n-en">While App Store binaries are FairPlay-encrypted, kernel <code>.ips</code> logs record every loaded Mach-O dynamic library inside <code>usedImages</code> — exposing behavioral biometrics SDKs (e.g., LexisNexis <code>TMXBehavioSec</code> inside Standard Chartered's background notification extension), custom QUIC stacks (<code>mmcronet</code>, <code>AMNet</code>), and 51 embedded dylibs in Huawei Health:</p>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><span class="i18n-zh">宿主进程 / 插件名称</span><span class="i18n-en">Process / Extension Name</span></th>
+            <th class="text-end"><span class="i18n-zh">内嵌动态库数</span><span class="i18n-en">Embedded Dylibs</span></th>
+            <th><span class="i18n-zh">实锤加载的私有 Framework 与风控 SDK 列表（高危标红）</span><span class="i18n-en">Loaded Private Frameworks &amp; Risk SDKs (High-Risk Highlighted)</span></th>
+            <th><span class="i18n-zh">证据等级</span><span class="i18n-en">Evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><b>ChatBox</b><br><code class="mono">com.example.chat</code></td><td class="text-end"><b>2</b></td><td><code style="">ExampleAnalytics</code> <code style="">ExampleNetStack</code></td><td><span class="evi evi-seen"><span class="i18n-zh">【实锤】Mach-O usedImages 符号表</span><span class="i18n-en">[VERIFIED] Mach-O usedImages Symbols</span></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 7: METHODOLOGY & LIMITATIONS -->
+  <div id="p-method" role="tabpanel" aria-labelledby="tab-method" hidden>
+    <div class="card"><div class="card-body">
+      <h3>
+        <span class="i18n-zh">🔬 取证方法论（未越狱 iOS 设备）</span>
+        <span class="i18n-en">🔬 Forensic Methodology (Non-Jailbroken Stock iOS)</span>
+      </h3>
+      <ol class="text-small i18n-zh">
+        <li><b>Lockdown &amp; InstallationProxy 全量元数据穿透</b>：通过 <code>usbmuxd</code> 建立配对通道，枚举全机所有用户态与系统态 Bundle 的完整属性字典、Apple 签名 <code>Entitlements</code> 权限树、<code>Info.plist</code> 静态声明与 App Extension 插件拓扑。</li>
+        <li><b>HouseArrest 沙盒容器可访问性实测</b>：对声明文件共享的容器逐一发起非破坏性只读挂载测试，统计无需生物识别即可在外部直接枚举的敏感数据文件。</li>
+        <li><b>OsTrace 实时内核日志流雷达</b>：通过 <code>ios_noir.py radar</code> 实时订阅 <code>tccd</code>（隐私权限仲裁守护进程）、<code>cameracaptured</code>、<code>locationd</code> 与 <code>lsd</code>，毫秒级捕获运行时权限预检与传感器探针。</li>
+      </ol>
+      <ol class="text-small i18n-en">
+        <li><b>Lockdown &amp; InstallationProxy Metadata Extraction</b>: Connects over <code>usbmuxd</code> to enumerate all installed user bundles, Apple-signed Mach-O <code>Entitlements</code>, <code>Info.plist</code> declarations, and App Extension topologies.</li>
+        <li><b>HouseArrest Sandbox Container Audit</b>: Performs non-destructive read-only directory enumeration against containers with file-sharing enabled to verify unauthenticated exposure.</li>
+        <li><b>OsTrace Real-Time Kernel Syslog Radar</b>: Subscribes to <code>tccd</code>, <code>cameracaptured</code>, <code>locationd</code>, and <code>lsd</code> via <code>ios_noir.py radar</code> to capture live permission preflights and sensor probes.</li>
+      </ol>
+    </div></div>
+
+    <div class="card"><div class="card-body">
+      <h3>
+        <span class="i18n-zh">⚖️ 方法论局限与严谨性边界（必读）</span>
+        <span class="i18n-en">⚖️ Methodology Limitations &amp; Forensic Boundaries</span>
+      </h3>
+      <ol class="text-small i18n-zh">
+        <li><b>未越狱 FairPlay 壳限制</b>：未越狱设备上的 App Store 二进制受 Apple FairPlay DRM 硬件加密保护，本工具不进行脱壳或 Ghidra 反编译；如需针对单款已脱壳 IPA 进行函数级反编译与字符串交叉引用，请参考并结合 <a href="https://github.com/RootSir/claude-ios-privacy-analysis" style="color:var(--blue)">RootSir/claude-ios-privacy-analysis</a> 的 Ghidra 自动化管线。</li>
+        <li><b>特权存在性【机制实锤】 ≠ 全天候触发【实锤】</b>：应用持有 <code>unrestricted-voip-regulatory</code> 或 <code>HotspotHelper</code> 证明苹果官方为其签发了突破常规限制的底层准入证，但是否在特定时刻下发静默唤醒或上报 BSSID 取决于服务端指令与运行时逻辑。</li>
+        <li><b>ATS 豁免域名 ≠ 当前活跃抓包流量</b>：<code>NSExceptionDomains</code> 中的域名（如 <code>jspatch.com</code>、<code>shuzilm.cn</code>）为开发者在 <code>Info.plist</code> 中显式声明的白名单，部分可能是历史遗留配置或按条件触发的备用通道。</li>
+      </ol>
+      <ol class="text-small i18n-en">
+        <li><b>FairPlay DRM Boundary on Stock iOS</b>: App Store binaries on non-jailbroken devices are FairPlay-encrypted. <code>iOS-NOIR</code> audits whole-device entitlements, plists, sandbox containers, and kernel telemetry without decrypting Mach-O code sections. For function-level Ghidra decompilation of decrypted IPAs, combine with <a href="https://github.com/RootSir/claude-ios-privacy-analysis" style="color:var(--blue)">RootSir/claude-ios-privacy-analysis</a>.</li>
+        <li><b>Capability ([CAPABILITY]) ≠ Continuous Runtime Trigger ([VERIFIED])</b>: Holding an Apple-signed entitlement proves the kernel bypass is unlocked, whereas actual trigger frequency depends on server-side push commands.</li>
+        <li><b>Static ATS Domains ≠ Live Traffic</b>: Domains in <code>NSExceptionDomains</code> are statically declared developer exceptions in <code>Info.plist</code>; some may be legacy or conditional endpoints.</li>
+      </ol>
+    </div></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var tabs = document.querySelectorAll('.nav-link[role="tab"]');
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      tabs.forEach(function (x) {
+        x.classList.remove('active');
+        x.setAttribute('aria-selected', 'false');
+        var p = document.getElementById(x.getAttribute('aria-controls'));
+        if (p) p.hidden = true;
+      });
+      t.classList.add('active');
+      t.setAttribute('aria-selected', 'true');
+      var panel = document.getElementById(t.getAttribute('aria-controls'));
+      if (panel) panel.hidden = false;
+    });
+  });
+
+  var langBtns = document.querySelectorAll('.lang-btn[data-set-lang]');
+  langBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var lang = btn.getAttribute('data-set-lang');
+      document.documentElement.setAttribute('data-lang', lang);
+      document.documentElement.setAttribute('lang', lang);
+      langBtns.forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-set-lang') === lang);
+      });
+    });
+  });
+
+  var searchInput = document.getElementById('app-search');
+  var onlyFlagged = document.getElementById('only-flagged');
+  function filterRows() {
+    var q = (searchInput ? searchInput.value : '').toLowerCase().trim();
+    var flaggedOnly = onlyFlagged ? onlyFlagged.checked : false;
+    var rows = document.querySelectorAll('#audit-table tbody tr.audit-row');
+    rows.forEach(function (r) {
+      var score = parseInt(r.getAttribute('data-score') || '0', 10);
+      var text = r.textContent.toLowerCase();
+      var matchQuery = !q || text.indexOf(q) !== -1;
+      var matchFlag = !flaggedOnly || score > 0 || text.indexOf('clean') === -1;
+      r.style.display = (matchQuery && matchFlag) ? '' : 'none';
+    });
+  }
+  if (searchInput) searchInput.addEventListener('input', filterRows);
+  if (onlyFlagged) onlyFlagged.addEventListener('change', filterRows);
+  filterRows();
+})();
+</script>
+</body>
+</html>

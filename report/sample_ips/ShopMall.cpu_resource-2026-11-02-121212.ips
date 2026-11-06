@@ -1,0 +1,2 @@
+{"bug_type": "202", "app_name": "ShopMall", "bundleID": "com.example.shop"}
+CPU:             90 seconds cpu time over 166 seconds (54% cpu average), exceeding limit of 50% cpu over 180 seconds

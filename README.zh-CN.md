@@ -12,6 +12,8 @@
 
 **把「这台未越狱的 iPhone 到底在暗中泄露什么」变成一份带三级证据标注的可复现底层取证报告。**
 
+📊 **交互式 HTML 报告样本（7 大标签页，合成数据）：** [`report/ios-noir-sample-report.html`](report/ios-noir-sample-report.html) *（全部是虚构的 `com.example.*` 应用，下载后用任意浏览器打开）*
+
 > 💡 **致敬 / Inspired by**  
 > - **工具架构与本地优先理念**：受 [**Verlintas/NOIR**](https://github.com/Verlintas/NOIR)（基于 `adb` 的 Android 本地隐私审计工具）启发。  
 > - **三级证据分级体系、五层持久设备身份链与独立交互式 HTML 报告**：深度借鉴 [**RootSir/claude-ios-privacy-analysis**](https://github.com/RootSir/claude-ios-privacy-analysis) 的严谨取证标准与可视化报告范式。
@@ -23,7 +25,7 @@
 参考 [`RootSir/claude-ios-privacy-analysis`](https://github.com/RootSir/claude-ios-privacy-analysis) 的证据审计规范，**iOS-NOIR** 在终端与独立 HTML 报告中对每一项发现实施严格的三级证据标注：
 
 - 🟢 **`【实锤 / VERIFIED】`**：直接从苹果官方签名的二进制 `Entitlements`、`Info.plist` 静态白名单（`LSApplicationQueriesSchemes`、`NSExceptionDomains`）、`ubiquity-kvstore` 或 `HouseArrest` 沙盒文件系统中实测提取到的确凿配置与裸露文件。
-- 🟠 **`【机制实锤 / CAPABILITY】`**：应用持有苹果签发的特殊内核级豁免特权（如 `unrestricted-voip-regulatory`、`HotspotHelper`、`multipath`、`network-authentication`），底层逃逸通道已就绪（具体触发频率取决于服务端推送与运行时状态）。
+- 🟠 **`【机制实锤 / CAPABILITY】`**：应用持有苹果签发的特殊内核级豁免特权（如 `unrestricted-voip-regulatory`、`HotspotHelper`、`multipath`），底层逃逸通道已就绪（具体触发频率取决于服务端推送与运行时状态）。
 - 🟣 **`【推断 / INFERRED】`**：基于多应用共享 `App Group` 容器、共享 `Keychain` 前缀及硬编码第三方风控/归因域名（如数字联盟 `shuzilm.cn`、联通 `id6.me`、秒针 `miaozhen.com`）的标准 SDK 行为推断其跨应用关联逻辑。
 
 ---
@@ -38,17 +40,23 @@
    iOS 钥匙串数据在卸载 App 后永久保留在系统库中，且同一开发者前缀下的矩阵应用可直接跨 App 读取。
 3. **第 3 层：跨应用沙盒串通池（`com.apple.security.application-groups`）** `【实锤】`  
    只要同系矩阵（如阿里系、腾讯系、字节系、Google 系、Meta 系）中有**任意 1 款**应用留在手机上，共享容器 `group.*` 内的设备 DNA 指纹就永不消失。
-4. **第 4 层：绕过 Wi-Fi 与 VPN 直连三大运营商基站取号（`multipath` & `network-authentication`）** `【机制实锤】`  
-   哪怕连着 Wi-Fi 或挂着 VPN，拥有多路径特权的应用也能强行拉起 `pdp_ip0` 蜂窝数据网卡，直连移动（`cmpassport.com`）、联通（`wostore.cn` / `id6.me`）、电信（`189.cn`）网关静默提取本机号码或暴露 SIM 卡归属地。
-5. **第 5 层：无视 GPS 开关的「系统级 Wi-Fi 扫描钩子」（`HotspotHelper` & `multicast`）** `【机制实锤】`  
+4. **第 4 层：写死三大运营商一键取号网关的「蜂窝取号通道」（`cmpassport.com` / `wostore.cn` / `id6.me` / `189.cn`）** `【实锤】`  
+   这些应用在 ATS 配置里写死了移动（`cmpassport.com`）、联通（`wostore.cn` / `id6.me`）、电信（`189.cn`）的一键登录网关。这类认证走蜂窝数据，连着 Wi-Fi 也照样走，运营商按 SIM 卡直接识别出你的本机号码。
+5. **第 5 层：无视 GPS 开关的「系统级 Wi-Fi 扫描钩子」（`HotspotHelper` 及其配套后台模式 `network-authentication` & `multicast`）** `【机制实锤】`  
    揪出伪装成外卖/点评/支付软件（如美团、大众点评、支付宝、微信、钉钉）却持有 `HotspotHelper` 的应用——只要系统扫描 Wi-Fi，iOS 内核就会在后台自动唤醒它们并喂入周边路由器硬件 MAC 地址（BSSID）。
 
 ### 🚨 其他高危后门检出项
 - **监管特批：无限制静默 VoIP 后台唤醒（`unrestricted-voip-regulatory`）** `【机制实锤】`：揪出持有苹果未公开监管豁免签名的超级 App（微信、QQ、钉钉），允许服务器下发无声 PushKit 指令把后台死进程静默拉活上万次，**屏幕不亮、不响、不留痕迹**。
-- **“查户口式”已安装应用嗅探（`LSApplicationQueriesSchemes`）与 URL 协议头恶意抢注劫持（`CFBundleURLSchemes`）** `【实锤】`：揭穿单个软件内置多达 **120~280 个** URL Scheme 白名单嗅探小火箭 (`shadowrocket`)、海外银行与豪车 App；同时检测全机 **38 组 URL Scheme 撞车劫持**（如 4 款软件同时抢注 `tc://` TON Connect 冷钱包连接协议、17 款软件抢注 `prefs://`）。
+- **“查户口式”已安装应用嗅探（`LSApplicationQueriesSchemes`）与 URL 协议头恶意抢注劫持（`CFBundleURLSchemes`）** `【实锤】`：揭穿单个软件内置多达 **120~280 个** URL Scheme 白名单嗅探小火箭 (`shadowrocket`)、海外银行与豪车 App；同时检测全机 **11 组 URL Scheme 撞车劫持**（如 4 款软件同时抢注 `tc://` TON Connect 冷钱包连接协议、18 款软件抢注 `prefs://`）。
 - **无需 FaceID！USB / Wi-Fi 1 秒掏空沙盒（`HouseArrest`）与系统级 `AFC` 根目录数据库裸露（`AfcService`）** `【实锤】`：实测扫描哪些 App 将 `/Documents` 裸露在外部接口下（暴露 `.kdbx` 密码库与银行账单 PDF），并检测无需开发者模式即可免密直读的 `/MediaAnalysis/MediaAnalysis.sqlite`（全机照片与截图 AI 实况文本 OCR 索引总库）与 `/PhotoData/Photos.sqlite`。
 - **ATS 加密降级（`NSExceptionDomains`）与局域网 Bonjour / 车机外设协议探针（`NSBonjourServices`）** `【实锤】`：静态抽取点名降级 HTTPS 的后门域名（`jspatch.com` 热更新后门、`shuzilm.cn` 数字联盟指纹），以及局域网 mDNS 广播探针（`_shadowrocket._tcp`、`_x5_gw._tcp`）和车机/智能眼镜协议指纹（宝马 `com.bmw.a4a1`、福特 `com.ford.sync.prot0`、Meta 眼镜 `com.facebook.stella`）。
-- **内核诊断黑匣子 `.ips` 深度取证（后台 >1.07GB/天「闪存寿命杀手」、CPU 断头台与免越狱动态库剥离）** `【实锤】`：直接解析 iOS 内核 `.ips` 诊断日志，揪出单日后台偷偷写盘超 `1.07 GB` 警戒线的闪存狂魔（如微信单次后台狂写 17.18 GB），并从崩溃符号表 (`usedImages`) 免越狱剥离出后台推送插件内嵌的 `TMXBehavioSec`（键盘敲击/滑动轨迹行为生物识别库）等私有 Framework。
+- **内核诊断黑匣子 `.ips` 深度取证（「闪存寿命杀手」、CPU 断头台与免越狱动态库剥离）** `【实锤】`：直接解析 iOS 内核 `.ips` 诊断日志，揪出 24 小时内写盘超过系统给它的限额的闪存狂魔，按「超出自己限额多少倍」排序（作者手机上：支付宝 10.0×、B站 5.8×、小红书 4.3×、QQ 3.5×、淘宝 2.6×、微信 1.3×；微信写得最多，18.7 小时写了 17.18 GB，但它的限额也最高），并从崩溃符号表 (`usedImages`) 免越狱剥离出后台推送插件内嵌的 `TMXBehavioSec`（键盘敲击/滑动轨迹行为生物识别库）等私有 Framework。
+
+### 📝 更新说明（2026-11-06）
+- `network-authentication` 是注册 Wi-Fi 热点钩子（HotspotHelper）时必须声明的后台模式（作者手机上带它的 4 款 App 全都持有 `HotspotHelper`），现在归到第 5 层 Wi-Fi 钩子；第 4 层改为看写死的运营商取号网关。
+- URL Scheme 撞车现在只统计**不同 App** 抢同一个 scheme；以前同一个 App 自己声明两次也会被算成撞车。
+- `.ips` 写盘报告现在按「超出自己限额多少倍」排序（不同进程的限额不同）。写入量是报告里记录的真实数据，没有改。
+- 样例报告换成了合成数据。
 
 ---
 
